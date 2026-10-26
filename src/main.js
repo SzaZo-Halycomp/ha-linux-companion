@@ -242,6 +242,37 @@ async function getCpuTemperatureC() {
   return bestSysfs ? bestSysfs.temp : null;
 }
 
+// ── Battery ──
+// First system battery in /sys/class/power_supply; peripherals (mouse,
+// keyboard) report scope=Device and are skipped. null when there is none.
+function getBatteryInfo() {
+  const root = '/sys/class/power_supply';
+  const read = (dir, file) => {
+    try { return fs.readFileSync(path.join(root, dir, file), 'utf8').trim(); } catch (e) { return null; }
+  };
+  try {
+    const dirs = fs.readdirSync(root);
+    const bat = dirs.find(d => read(d, 'type') === 'Battery' && read(d, 'scope') !== 'Device');
+    if (!bat) return null;
+    const percent = parseInt(read(bat, 'capacity'));
+    if (isNaN(percent)) return null;
+    // charging | discharging | full | not_charging | unknown
+    const status = (read(bat, 'status') || 'unknown').toLowerCase().replace(/ /g, '_');
+    const ac = dirs.find(d => read(d, 'type') === 'Mains');
+    return { percent, status, charging: status === 'charging', acOnline: ac ? read(ac, 'online') === '1' : null };
+  } catch (e) {
+    return null;
+  }
+}
+
+// mdi icon that follows the level in 10% steps, like HA's own battery icons
+function batteryIcon(bat) {
+  const level = Math.round(bat.percent / 10) * 10;
+  if (level >= 100) return bat.charging ? 'mdi:battery-charging-100' : 'mdi:battery';
+  if (level <= 0) return bat.charging ? 'mdi:battery-charging-outline' : 'mdi:battery-outline';
+  return 'mdi:battery' + (bat.charging ? '-charging-' : '-') + level;
+}
+
 async function collectSensors() {
   const sensors = [];
 
@@ -307,6 +338,20 @@ async function collectSensors() {
           sensors.push({ unique_id: 'ip_address', state: n.address, type: 'sensor', name: 'IP Address', icon: 'mdi:ip-network' });
         }
       }
+    }
+
+    // Battery (laptops/tablets only)
+    const bat = getBatteryInfo();
+    if (bat) {
+      sensors.push({
+        unique_id: 'battery_level', state: bat.percent, type: 'sensor',
+        name: 'Battery Level', icon: batteryIcon(bat),
+        device_class: 'battery', unit_of_measurement: '%', state_class: 'measurement',
+      });
+      sensors.push({
+        unique_id: 'battery_state', state: bat.status, type: 'sensor',
+        name: 'Battery State', icon: bat.acOnline === false ? 'mdi:power-plug-off' : 'mdi:power-plug',
+      });
     }
 
     // Display
@@ -1651,6 +1696,7 @@ ipcMain.handle('get-hardware-info', () => {
     return b.temp - a.temp;
   })[0]?.temp;
   if (cpuTempC !== undefined) hw.cpuTempC = cpuTempC.toFixed(1);
+  hw.battery = getBatteryInfo();
   // RAM
   const memInfo = runShell('free -m 2>/dev/null');
   const memMatch = memInfo.match(/Mem:\s+(\d+)\s+(\d+)/);

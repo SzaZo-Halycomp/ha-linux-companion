@@ -14,6 +14,10 @@
     .topbar-date { font-size:12px;color:rgba(255,255,255,0.5); }
     .topbar-temp { font-size:12px;display:flex;align-items:center;gap:3px; }
     .topbar-temp .dot { width:6px;height:6px;border-radius:50%;display:inline-block; }
+    .topbar-battery { font-size:12px;display:flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums; }
+    .topbar-battery .bat { position:relative;width:20px;height:10px;border:1.5px solid rgba(255,255,255,0.6);border-radius:3px;box-sizing:border-box;padding:1px; }
+    .topbar-battery .bat::after { content:'';position:absolute;right:-4px;top:2px;width:2px;height:3px;background:rgba(255,255,255,0.6);border-radius:0 1px 1px 0; }
+    .topbar-battery .bat-fill { height:100%;border-radius:1px; }
     .topbar-right { display:flex;align-items:center;gap:10px; }
     .topbar-device { font-size:10px;color:rgba(255,255,255,0.35);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
     #ha-comp-topbar-btn { width:40px;height:40px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,0.55);font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s; }
@@ -117,6 +121,7 @@
       <span class="topbar-time" id="topbar-clock">--:--</span>
       <span class="topbar-date" id="topbar-date">--</span>
       <span class="topbar-temp" id="topbar-temp"></span>
+      <span class="topbar-battery" id="topbar-battery"></span>
     </div>
     <div class="topbar-right">
       <span class="topbar-device" id="topbar-device"></span>
@@ -203,9 +208,28 @@
   updateTopbarClock();
 
   // Update temp in topbar
+  function batteryColor(bat) {
+    if (bat.charging) return '#30D158';
+    return bat.percent <= 15 ? '#FF3B30' : bat.percent <= 30 ? '#FF9500' : 'rgba(255,255,255,0.85)';
+  }
+  function batteryStatusText(bat) {
+    var key = { charging: 'batteryCharging', discharging: 'batteryDischarging', full: 'batteryFull', not_charging: 'batteryNotCharging' }[bat.status];
+    return key ? t(key) : bat.status;
+  }
+  function updateTopbarBattery(bat) {
+    var el = document.getElementById('topbar-battery');
+    if (!el) return;
+    if (!bat) { el.innerHTML = ''; return; }
+    el.title = t('battery') + ': ' + bat.percent + '% · ' + batteryStatusText(bat);
+    el.innerHTML = '<span class="bat"><span class="bat-fill" style="display:block;width:' + Math.max(4, bat.percent) + '%;background:' + batteryColor(bat) + '"></span></span>' +
+      (bat.charging ? '⚡' : '') + bat.percent + '%';
+  }
+
   function updateTopbarTemp() {
     window.haCompanion.getHardwareInfo().then(function(hw) {
-      if (!hw || !hw.cpuTempC) return;
+      if (!hw) return;
+      updateTopbarBattery(hw.battery);
+      if (!hw.cpuTempC) return;
       var t = parseFloat(hw.cpuTempC);
       var color = t > 70 ? '#FF3B30' : t > 55 ? '#FF9500' : '#30D158';
       var el = document.getElementById('topbar-temp');
@@ -460,6 +484,11 @@
         var tempColor = parseFloat(hw.cpuTempC) > 70 ? '#FF3B30' : parseFloat(hw.cpuTempC) > 55 ? '#FF9500' : '#30D158';
         html += '<div class="comp-info-item"><div class="comp-info-label">CPU Temp</div><div class="comp-info-value" style="color:' + tempColor + '">' + hw.cpuTempC + '°C</div>';
         html += '<div class="comp-info-bar"><div class="comp-info-bar-fill" style="width:' + Math.min(100, parseFloat(hw.cpuTempC)) + '%;background:' + tempColor + '"></div></div></div>';
+      }
+      if (hw.battery) {
+        var batColor = batteryColor(hw.battery);
+        html += '<div class="comp-info-item"><div class="comp-info-label">' + t('battery') + '</div><div class="comp-info-value" style="color:' + batColor + '">' + (hw.battery.charging ? '⚡' : '') + hw.battery.percent + '% · ' + batteryStatusText(hw.battery) + '</div>';
+        html += '<div class="comp-info-bar"><div class="comp-info-bar-fill" style="width:' + hw.battery.percent + '%;background:' + batColor + '"></div></div></div>';
       }
       if (hw.cpuFreqMhz) html += '<div class="comp-info-item"><div class="comp-info-label">CPU Freq</div><div class="comp-info-value">' + hw.cpuFreqMhz + ' MHz</div></div>';
       if (hw.ramTotalMb) {

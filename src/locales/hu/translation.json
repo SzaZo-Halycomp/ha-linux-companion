@@ -70,5 +70,10 @@
   "default": "Alapértelmezett",
   "on": "Be",
   "off": "Ki",
+  "battery": "Akkumulátor",
+  "batteryCharging": "Töltés",
+  "batteryDischarging": "Merül",
+  "batteryFull": "Feltöltve",
+  "batteryNotCharging": "Nem tölt",
   "secondsLabel": "mp"
 }

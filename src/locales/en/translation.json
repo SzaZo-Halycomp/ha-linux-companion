@@ -70,5 +70,10 @@
   "default": "Default",
   "on": "On",
   "off": "Off",
+  "battery": "Battery",
+  "batteryCharging": "Charging",
+  "batteryDischarging": "Discharging",
+  "batteryFull": "Full",
+  "batteryNotCharging": "Not charging",
   "secondsLabel": "sec"
 }
