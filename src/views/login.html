@@ -184,9 +184,9 @@
     window.haCompanion.getVersion().then(v => { const d = document.createElement('div'); d.style.cssText = 'text-align:center;margin-top:12px;font-size:11px;color:#636366'; d.textContent = 'v' + v; document.querySelector('.container').appendChild(d); });
     // Set keyboard space bar label based on stored language
     try {
-      const lang = localStorage.getItem('ha_lang') || 'it';
+      const lang = (localStorage.getItem('ha_lang') || navigator.language || 'en').slice(0, 2);
       const spaceBtn = document.querySelector('.space-btn[data-special="space"]');
-      if (spaceBtn) spaceBtn.textContent = lang === 'it' ? 'spazio' : 'space';
+      if (spaceBtn) spaceBtn.textContent = { it: 'spazio', de: 'Leerzeichen', hu: 'szóköz' }[lang] || 'space';
     } catch (_) {}
   </script>
 </body>

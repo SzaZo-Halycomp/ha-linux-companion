@@ -18,6 +18,7 @@ const auth = require('./auth');
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'ha-linux-companion');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const APP_VERSION = app.getVersion();
+const SUPPORTED_LANGS = ['en', 'it', 'de', 'hu'];
 
 let mainWindow = null;
 let tray = null;
@@ -576,23 +577,28 @@ function loadDashboard() {
         // Inject i18n (must run before overlay)
         try {
           const localesDir = path.join(__dirname, 'locales');
-          const supportedLangs = ['it', 'en', 'de'];
           const locales = {};
-          for (const lang of supportedLangs) {
+          for (const lang of SUPPORTED_LANGS) {
             const filePath = path.join(localesDir, lang, 'translation.json');
             locales[lang] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
           }
           const i18nCode = [
             '(function() {',
             '  var LOCALES = ' + JSON.stringify(locales) + ';',
-            '  var currentLang = localStorage.getItem("ha_lang") || "it";',
+            // Saved choice, then HA's UI language, then the system language, then English
+            '  function pick(l) { l = String(l || "").toLowerCase().split(/[-_]/)[0]; return LOCALES[l] ? l : null; }',
+            '  var haLang = null;',
+            '  try { haLang = JSON.parse(localStorage.getItem("selectedLanguage")); } catch (e) {}',
+            '  var currentLang = pick(localStorage.getItem("ha_lang")) || pick(haLang) ||',
+            '    pick(document.documentElement.lang) || pick(navigator.language) || "en";',
             '  function t(key, params) {',
-            '    var langData = LOCALES[currentLang] || LOCALES["it"] || {};',
+            '    var langData = LOCALES[currentLang] || LOCALES["en"] || {};',
             '    var text = langData[key] || key;',
             '    for (var k in params) { text = text.replace("{{" + k + "}}", params[k]); }',
             '    return text;',
             '  }',
             '  window.__haLocales = LOCALES;',
+            '  window.__haLang = currentLang;',
             '  window.__haT = t;',
             '})();'
           ].join('\n');
@@ -1483,9 +1489,8 @@ ipcMain.handle('get-version', () => APP_VERSION);
 
 ipcMain.handle('get-locales', () => {
   const localesDir = path.join(__dirname, 'locales');
-  const supportedLangs = ['it', 'en', 'de'];
   const locales = {};
-  for (const lang of supportedLangs) {
+  for (const lang of SUPPORTED_LANGS) {
     const filePath = path.join(localesDir, lang, 'translation.json');
     try { locales[lang] = JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch (_) {}
   }

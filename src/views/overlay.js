@@ -65,7 +65,8 @@
   document.head.appendChild(style);
 
   // ── i18n Setup ──
-  let currentLang = 'it';
+  // Resolved by the injected i18n script (saved > HA language > system > en)
+  let currentLang = window.__haLang || 'en';
   let LOCALES = {};
   
   function loadLocales() {
@@ -77,7 +78,7 @@
   }
   
   function t(key, params = {}) {
-    const langData = LOCALES[currentLang] || LOCALES['it'] || {};
+    const langData = LOCALES[currentLang] || LOCALES['en'] || {};
     let text = langData[key] || key;
     for (const [k, v] of Object.entries(params)) {
       text = text.replace('{{' + k + '}}', v);

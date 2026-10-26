@@ -1,0 +1,72 @@
+{
+  "days": ["V", "H", "K", "Sze", "Cs", "P", "Szo"],
+  "months": ["jan", "febr", "márc", "ápr", "máj", "jún", "júl", "aug", "szept", "okt", "nov", "dec"],
+
+  "settings": "Beállítások",
+  "language": "🌐 Nyelv",
+
+  "sectionDisplay": "🖥️ Kijelző",
+  "brightness": "Fényerő",
+  "monitor": "Monitor",
+  "nightSchedule": "🌙 Éjszakai ütemezés",
+  "turnOffAt": "Kikapcsolás",
+  "turnOnAt": "Bekapcsolás",
+
+  "sectionAudio": "🔊 Hang",
+  "volume": "Hangerő",
+  "mute": "Némítás",
+  "output": "Kimenet",
+
+  "sectionNetwork": "📶 Hálózat",
+  "sectionBluetooth": "📶 Bluetooth",
+  "bluetooth": "Bluetooth",
+  "notAvailable": "Nem elérhető",
+  "signal": "Jelerősség",
+  "interface": "Interfész",
+
+  "sectionHardware": "🔧 Hardver",
+  "cpuGovernor": "CPU-ütemező",
+
+  "sectionDevice": "📊 Eszköz",
+  "sensors": "Érzékelők",
+
+  "sectionNotifications": "🔔 Értesítések",
+  "notifications": "🔔 Értesítések",
+  "sound": "Hang",
+  "doNotDisturb": "🌙 Ne zavarjanak",
+  "popupDuration": "Felugró ablak ideje",
+  "never": "Soha",
+  "melody": "Dallam",
+  "customSound": "🎵 Egyéni hang",
+  "selectPlaceholder": "-- válassz --",
+  "soundFormats": "Formátumok: .wav, .ogg, .mp3, .flac — ",
+  "latestNotifications": "Legutóbbi értesítések",
+  "noNotifications": "Nincs értesítés",
+  "clear": "Törlés",
+
+  "sectionChannels": "📡 Csatornák",
+  "channelsDesc": "A csatornák automatikusan jönnek létre, amikor a Home Assistant értesítést küld ezzel: ",
+  "noChannels": "Még nincs csatorna.",
+
+  "sectionUpdates": "🔄 Frissítések",
+  "updateError": "Nem sikerült frissítést keresni",
+  "updateAvailable": "🟢 Új verzió érhető el!",
+
+  "sectionActions": "⚙ Műveletek",
+
+  "confirmReboot": "Újraindítod a rendszert?",
+  "confirmShutdown": "Leállítod a rendszert?",
+
+  "notifCount_one": "{{count}} értesítés",
+  "notifCount_other": "{{count}} értesítés",
+
+  "customLabel": "🎵 Egyéni",
+  "noFilesFound": "Nincs fájl",
+  "noDevicesFound": "Nincs eszköz",
+  "spaceKey": "szóköz",
+  "scanning": "Keresés...",
+  "scan": "Keresés",
+  "connect": "Csatlakozás",
+  "default": "Alapértelmezett",
+  "secondsLabel": "mp"
+}
