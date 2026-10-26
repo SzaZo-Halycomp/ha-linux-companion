@@ -371,6 +371,7 @@
   // ── Load panel data ──
   function loadPanelData() {
     ipc('getNotificationHistory').then(renderNotifHistory);
+    loadNotifSettings();
     loadAndRenderChannels();
     loadHardwareInfo();
     loadNetworkInfo();
@@ -585,14 +586,30 @@
   var notifDuration = document.getElementById('comp-notif-duration');
   var notifMelody = document.getElementById('comp-notif-melody');
 
-  var notifSettings = JSON.parse(localStorage.getItem('ha_notif_settings') || '{}');
-  if (notifSettings.enabled === false) notifEnabledBtn.classList.remove('on'); else notifEnabledBtn.classList.add('on');
-  if (notifSettings.sound === false) notifSoundBtn.classList.remove('on'); else notifSoundBtn.classList.add('on');
-  if (notifSettings.dnd) notifDndBtn.classList.add('on'); else notifDndBtn.classList.remove('on');
-  if (notifSettings.duration) notifDuration.value = notifSettings.duration;
-  if (notifSettings.melody) notifMelody.value = notifSettings.melody;
+  // Kept in the main process, which applies them (and command_dnd changes them)
+  var notifSettings = {};
+  function renderNotifSettings() {
+    if (notifSettings.enabled === false) notifEnabledBtn.classList.remove('on'); else notifEnabledBtn.classList.add('on');
+    if (notifSettings.sound === false) notifSoundBtn.classList.remove('on'); else notifSoundBtn.classList.add('on');
+    if (notifSettings.dnd) notifDndBtn.classList.add('on'); else notifDndBtn.classList.remove('on');
+    if (notifSettings.duration != null) notifDuration.value = notifSettings.duration;
+    if (notifSettings.melody && !notifSettings.melody.startsWith('custom:')) notifMelody.value = notifSettings.melody;
+  }
+  function loadNotifSettings() {
+    return ipc('getNotifSettings').then(function(s) {
+      // One-time move of settings saved in the page before they lived in main
+      var legacy = localStorage.getItem('ha_notif_settings');
+      if (legacy && (!s || !Object.keys(s).length)) {
+        try { s = JSON.parse(legacy); ipc('setNotifSettings', s); } catch (e) {}
+      }
+      if (legacy) localStorage.removeItem('ha_notif_settings');
+      notifSettings = s || {};
+      renderNotifSettings();
+    });
+  }
+  var notifSettingsLoaded = loadNotifSettings();
 
-  function saveNotifSettings() { localStorage.setItem('ha_notif_settings', JSON.stringify(notifSettings)); }
+  function saveNotifSettings() { ipc('setNotifSettings', notifSettings); }
 
   notifEnabledBtn.addEventListener('click', function() { notifSettings.enabled = !notifEnabledBtn.classList.contains('on'); notifEnabledBtn.classList.toggle('on'); saveNotifSettings(); });
   notifSoundBtn.addEventListener('click', function() { notifSettings.sound = !notifSoundBtn.classList.contains('on'); notifSoundBtn.classList.toggle('on'); saveNotifSettings(); if (notifSettings.sound) ipc('playNotificationSound', notifMelody.value); });
@@ -603,8 +620,10 @@
   // Custom sounds
   var customSection = document.getElementById('comp-custom-sounds');
   var customSelect = document.getElementById('comp-notif-custom');
-  var customOpt = document.createElement('option'); customOpt.value = '__custom__'; customOpt.textContent = '🎵 Personalizzata'; notifMelody.appendChild(customOpt);
-  if (notifSettings.melody && notifSettings.melody.startsWith('custom:')) { notifMelody.value = '__custom__'; customSection.style.display = 'block'; }
+  var customOpt = document.createElement('option'); customOpt.value = '__custom__'; customOpt.textContent = t('customLabel'); notifMelody.appendChild(customOpt);
+  notifSettingsLoaded.then(function() {
+    if (notifSettings.melody && notifSettings.melody.startsWith('custom:')) { notifMelody.value = '__custom__'; customSection.style.display = 'block'; }
+  });
   notifMelody.addEventListener('change', function() {
     if (notifMelody.value === '__custom__') {
       customSection.style.display = 'block';

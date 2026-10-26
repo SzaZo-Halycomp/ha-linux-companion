@@ -1324,14 +1324,11 @@ function handleNotificationCommand(message, data) {
 
     case 'command_dnd':
       // Toggle app DND from HA
-      const dndState = d.dnd;
-      if (dndState !== undefined) {
-        // Store DND in file for overlay to read
-        try {
-          const dndFile = path.join(CONFIG_DIR, 'dnd');
-          fs.writeFileSync(dndFile, dndState ? '1' : '0');
-        } catch (e) {}
-        log('[Command] dnd=' + dndState);
+      if (d.dnd !== undefined) {
+        // Accept true/false as well as HA-style "on"/"off" strings
+        const dnd = d.dnd === true || ['on', 'true', '1'].includes(String(d.dnd).toLowerCase());
+        setNotifSettings({ dnd });
+        log('[Command] dnd=' + dnd);
       }
       return true;
 
@@ -1343,8 +1340,8 @@ function handleNotificationCommand(message, data) {
       return true;
 
     case 'command_update_sensors':
-      // Force immediate sensor update
-      updateSensors();
+      // Force immediate sensor update (also restarts the 60s timer)
+      startSensorUpdates();
       log('[Command] update_sensors');
       return true;
 
@@ -1381,7 +1378,7 @@ function handleNotificationCommand(message, data) {
       if (d.url && mainWindow && !mainWindow.isDestroyed()) {
         var bgUrl = d.url;
         mainWindow.webContents.executeJavaScript(
-          'document.body.style.backgroundImage="url(' + JSON.stringify(bgUrl) + ')"; document.body.style.backgroundSize="cover";'
+          'document.body.style.backgroundImage = ' + JSON.stringify('url(' + JSON.stringify(bgUrl) + ')') + '; document.body.style.backgroundSize = "cover";'
         ).catch(function(){});
         log('[Command] set_wallpaper');
       }
@@ -1422,12 +1419,23 @@ function showNotification(title, message, options = {}) {
   }
 
   const priority = options.priority || 'default';
-  const soundName = options.sound || 'default';
+  const melody = notifSettings.melody && notifSettings.melody !== '__custom__' ? notifSettings.melody : 'default';
+  const soundName = options.sound || melody;
+  if (notifSettings.enabled === false) {
+    log('[Notify] Suppressed (notifications off): ' + title);
+    return;
+  }
   log('[Notify] ' + title + ': ' + message + ' [' + priority + ']' + (options.channel ? ' ch=' + options.channel : ''));
   addToHistory(title, message);
 
+  // Do not disturb: history only, no popup or sound (critical still gets through)
+  if (notifSettings.dnd && priority !== 'critical') {
+    log('[Notify] Silenced (do not disturb)');
+    return;
+  }
+
   // Play sound via system audio
-  playNotificationSound(soundName);
+  if (notifSettings.sound !== false) playNotificationSound(soundName);
 
   // Send toast to overlay in main window
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1439,7 +1447,7 @@ function showNotification(title, message, options = {}) {
           priority,
           icon: options.icon,
           sound: false,
-          duration: options.duration,
+          duration: options.duration != null ? options.duration : notifSettings.duration,
           actions: options.actions,
           channel: options.channel,
         })})`
@@ -1761,6 +1769,24 @@ ipcMain.handle('check-updates', async () => {
     return { error: e.message };
   }
 });
+
+// ── Notification settings ──
+// Set from the settings panel and command_dnd; applied in showNotification()
+// { enabled, sound, dnd, duration (ms, 0 = stay), melody }
+const NOTIF_SETTINGS_FILE = path.join(CONFIG_DIR, 'notif-settings.json');
+let notifSettings = {};
+try {
+  if (fs.existsSync(NOTIF_SETTINGS_FILE)) notifSettings = JSON.parse(fs.readFileSync(NOTIF_SETTINGS_FILE, 'utf8'));
+} catch (e) {}
+
+function setNotifSettings(s) {
+  notifSettings = { ...notifSettings, ...s };
+  try { fs.writeFileSync(NOTIF_SETTINGS_FILE, JSON.stringify(notifSettings, null, 2)); } catch (e) {}
+  return notifSettings;
+}
+
+ipcMain.handle('get-notif-settings', () => notifSettings);
+ipcMain.handle('set-notif-settings', (event, s) => setNotifSettings(s));
 
 // ── Night Schedule ──
 const SCHEDULE_FILE = path.join(CONFIG_DIR, 'schedule.json');
