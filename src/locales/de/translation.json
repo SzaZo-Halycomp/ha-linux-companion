@@ -68,5 +68,7 @@
   "scan": "Suchen",
   "connect": "Verbinden",
   "default": "Standard",
+  "on": "An",
+  "off": "Aus",
   "secondsLabel": "Sek"
 }

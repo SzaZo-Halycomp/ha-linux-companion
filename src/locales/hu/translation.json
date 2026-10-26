@@ -68,5 +68,7 @@
   "scan": "Keresés",
   "connect": "Csatlakozás",
   "default": "Alapértelmezett",
+  "on": "Be",
+  "off": "Ki",
   "secondsLabel": "mp"
 }

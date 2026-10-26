@@ -68,5 +68,7 @@
   "scan": "Scan",
   "connect": "Connect",
   "default": "Default",
+  "on": "On",
+  "off": "Off",
   "secondsLabel": "sec"
 }

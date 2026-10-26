@@ -573,11 +573,16 @@ function loadDashboard() {
         // Kiosk CSS, i18n, settings overlay and toasts live in the page, so a full
         // reload (e.g. changing language) wipes them: re-inject on every load.
         const injectUI = function() {
-          mainWindow.webContents.insertCSS(
-            // Base: hide sidebar on kiosk panels
-            'ha-sidebar { display: none !important; } ' +
-            'hui-root { --sidebar-width: 0px !important; }'
-          );
+          // Hide the sidebar on kiosk panels. CSS can't reach it (shadow DOM), so use
+          // HA's own "always hidden" dock mode; the ☰ button still opens it.
+          mainWindow.webContents.executeJavaScript([
+            '(function() {',
+            '  if (localStorage.getItem("dockedSidebar") === "\\"always_hidden\\"") return;',
+            '  var ha = document.querySelector("home-assistant");',
+            '  if (ha) ha.dispatchEvent(new CustomEvent("hass-dock-sidebar", { detail: { dock: "always_hidden" }, bubbles: true, composed: true }));',
+            '  localStorage.setItem("dockedSidebar", "\\"always_hidden\\"");',
+            '})();'
+          ].join('\n')).catch(function() {});
 
           // Inject i18n (must run before overlay)
           try {
@@ -1598,21 +1603,23 @@ ipcMain.handle('get-network-info', () => {
 // ── Audio Output Selector ──
 ipcMain.handle('get-audio-outputs', () => {
   const outputs = [];
-  const pactl = runShell('pactl list sinks short 2>/dev/null');
-  if (pactl) {
-    pactl.split('\n').forEach(line => {
-      if (!line.trim()) return;
-      const parts = line.split(/\s+/);
-      if (parts.length >= 2) {
-        const sinkId = parts[0];
-        const name = parts[1];
-        // Get description
-        const desc = runShell('pactl get-sink-property ' + sinkId + ' node.description 2>/dev/null');
-        const descClean = desc.replace(/^\s*"|"\s*$/g, '').trim() || name;
-        // Check if default
-        const defSink = runShell('pactl get-default-sink 2>/dev/null');
-        outputs.push({ id: sinkId, name, description: descClean, isDefault: defSink === name });
-      }
+  const defSink = runShell('pactl get-default-sink 2>/dev/null');
+  let sinks = null;
+  try {
+    // pactl >= 16: JSON with readable names
+    sinks = JSON.parse(runShell('pactl -f json list sinks 2>/dev/null'));
+  } catch (e) {}
+  if (Array.isArray(sinks)) {
+    sinks.forEach(s => {
+      const props = s.properties || {};
+      // Short per-output label ("Speaker", "HDMI / DisplayPort 1 Output") over the long card name
+      const description = props['device.profile.description'] || s.description || s.name;
+      outputs.push({ id: String(s.index), name: s.name, description, isDefault: defSink === s.name });
+    });
+  } else {
+    runShell('pactl list sinks short 2>/dev/null').split('\n').forEach(line => {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 2) outputs.push({ id: parts[0], name: parts[1], description: parts[1], isDefault: defSink === parts[1] });
     });
   }
   // Fallback: amixer

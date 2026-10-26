@@ -120,7 +120,7 @@
     </div>
     <div class="topbar-right">
       <span class="topbar-device" id="topbar-device"></span>
-      <button id="ha-comp-topbar-btn" title="Impostazioni">⚙</button>
+      <button id="ha-comp-topbar-btn" title="${t('settings')}">⚙</button>
     </div>
   `;
   document.body.appendChild(topbar);
@@ -177,9 +177,17 @@
     }
   }, { capture: true, passive: true });
 
-  // Mouse near top always reveals
+  // Mouse resting at the top edge reveals after a dwell, so reaching for HA's
+  // own toolbar doesn't pop the bar over it
+  const MOUSE_REVEAL_DELAY = 2000;
+  let mouseRevealTimer = null;
   document.addEventListener('mousemove', function(e) {
-    if (e.clientY < 15) revealBar();
+    if (e.clientY < 15) {
+      if (!mouseRevealTimer) mouseRevealTimer = setTimeout(function() { mouseRevealTimer = null; revealBar(); }, MOUSE_REVEAL_DELAY);
+    } else if (mouseRevealTimer) {
+      clearTimeout(mouseRevealTimer);
+      mouseRevealTimer = null;
+    }
   });
   // Pin bar while panel is open
   // (handled in togglePanel below)
@@ -225,7 +233,7 @@
 
     <h3>${t('sectionDisplay')}</h3>
     <div class="comp-row" id="comp-brightness-row"><div class="comp-label">${t('brightness')}</div><div style="display:flex;align-items:center;gap:8px"><input type="range" class="comp-slider" id="comp-brightness" min="10" max="100" value="100"><span class="comp-val" id="comp-brightness-val">100%</span></div></div>
-    <div class="comp-row"><div class="comp-label">${t('monitor')}</div><div style="display:flex;gap:6px"><button class="comp-btn primary" id="comp-display-on" style="padding:6px 12px;font-size:12px">ON</button><button class="comp-btn secondary" id="comp-display-off" style="padding:6px 12px;font-size:12px">OFF</button></div></div>
+    <div class="comp-row"><div class="comp-label">${t('monitor')}</div><div style="display:flex;gap:6px"><button class="comp-btn primary" id="comp-display-on" style="padding:6px 12px;font-size:12px">${t('on').toUpperCase()}</button><button class="comp-btn secondary" id="comp-display-off" style="padding:6px 12px;font-size:12px">${t('off').toUpperCase()}</button></div></div>
     <div class="comp-row"><div class="comp-label">${t('nightSchedule')}</div><button class="comp-toggle" id="comp-schedule-enabled"></button></div>
     <div id="comp-schedule-times" style="display:none;padding:6px 0">
       <div class="comp-row"><div class="comp-label">${t('turnOffAt')}</div><input type="time" class="comp-input" id="comp-schedule-off" value="23:00"></div>
@@ -234,7 +242,7 @@
 
     <h3>${t('sectionAudio')}</h3>
     <div class="comp-row"><div class="comp-label">${t('volume')}</div><div style="display:flex;align-items:center;gap:8px"><input type="range" class="comp-slider" id="comp-volume" min="0" max="100" value="50"><span class="comp-val" id="comp-volume-val">50%</span></div></div>
-    <div class="comp-row"><div class="comp-label">${t('mute')}</div><button class="comp-btn secondary" id="comp-mute">Off</button></div>
+    <div class="comp-row"><div class="comp-label">${t('mute')}</div><button class="comp-btn secondary" id="comp-mute">${t('off')}</button></div>
     <div class="comp-row"><div class="comp-label">${t('output')}</div><select class="comp-select" id="comp-audio-output"></select></div>
 
     <h3>${t('sectionNetwork')}</h3>
@@ -384,7 +392,8 @@
   // ── Audio ──
   var volSlider = document.getElementById('comp-volume'), volVal = document.getElementById('comp-volume-val'), muteBtn = document.getElementById('comp-mute');
   volSlider.addEventListener('input', async () => { volVal.textContent = volSlider.value + '%'; await ipc('setVolume', parseInt(volSlider.value)); });
-  muteBtn.addEventListener('click', async () => { const m = muteBtn.textContent === 'Off'; muteBtn.textContent = m ? 'On' : 'Off'; muteBtn.style.background = m ? '#FF3B30' : '#3A3A3C'; await ipc('setMute', m); });
+  let muted = false;
+  muteBtn.addEventListener('click', async () => { muted = !muted; muteBtn.textContent = t(muted ? 'on' : 'off'); muteBtn.style.background = muted ? '#FF3B30' : '#3A3A3C'; await ipc('setMute', muted); });
 
   var audioOutputSel = document.getElementById('comp-audio-output');
   function loadAudioOutputs() {
@@ -537,7 +546,7 @@
   }
   document.getElementById('comp-notif-clear').addEventListener('click', function() {
     notifList.innerHTML = '';
-    notifCount.textContent = 'Nessuna notifica';
+    notifCount.textContent = t('noNotifications');
   });
 
   // ── Notification settings ──
@@ -571,9 +580,9 @@
     if (notifMelody.value === '__custom__') {
       customSection.style.display = 'block';
       ipc('listCustomSounds').then(function(sounds) {
-        customSelect.innerHTML = '<option value="">-- seleziona --</option>';
+        customSelect.innerHTML = '<option value="">' + t('selectPlaceholder') + '</option>';
         if (sounds && sounds.length) { sounds.forEach(function(s) { var o = document.createElement('option'); o.value = 'custom:' + s.file; o.textContent = s.name; customSelect.appendChild(o); }); if (notifSettings.melody) customSelect.value = notifSettings.melody; }
-        else customSelect.innerHTML = '<option value="">Nessun file trovato</option>';
+        else customSelect.innerHTML = '<option value="">' + t('noFilesFound') + '</option>';
       });
     } else { customSection.style.display = 'none'; notifSettings.customSound = null; }
   });
@@ -582,7 +591,7 @@
   // ── Channels ──
   var channelsList = document.getElementById('comp-channels-list');
   function renderChannels(chs) {
-    if (!chs || !Object.keys(chs).length) { channelsList.innerHTML = '<div style="color:#636366;font-size:12px;padding:8px 0">Nessun canale ancora.</div>'; return; }
+    if (!chs || !Object.keys(chs).length) { channelsList.innerHTML = '<div style="color:#636366;font-size:12px;padding:8px 0">' + t('noChannels') + '</div>'; return; }
     var html = '';
     for (var id in chs) {
       var ch = chs[id];
@@ -647,7 +656,7 @@
     if (info.brightness !== undefined) { brightSlider.value = info.brightness; brightVal.textContent = info.brightness + '%'; }
     if (info.deviceName) { document.getElementById('comp-device-name').textContent = info.deviceName; var td = document.getElementById('topbar-device'); if (td) td.textContent = info.deviceName; }
     if (info.version) document.getElementById('comp-version').textContent = info.version;
-    if (info.sensors) document.getElementById('comp-sensor-info').textContent = 'Sensors: ' + info.sensors;
+    if (info.sensors) document.getElementById('comp-sensor-info').textContent = t('sensors') + ': ' + info.sensors;
     if (!info.hasBacklight) { var br = document.getElementById('comp-brightness-row'); if(br) br.style.display='none'; }
   });
 })();
