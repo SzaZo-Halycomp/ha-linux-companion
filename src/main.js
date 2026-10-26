@@ -331,13 +331,9 @@ async function collectSensors() {
     });
 
     // IP
-    const nets = os.networkInterfaces();
-    for (const name of Object.keys(nets)) {
-      for (const n of nets[name]) {
-        if (n.family === 'IPv4' && !n.internal && (name.startsWith('eth') || name.startsWith('wlan') || name.startsWith('end'))) {
-          sensors.push({ unique_id: 'ip_address', state: n.address, type: 'sensor', name: 'IP Address', icon: 'mdi:ip-network' });
-        }
-      }
+    const ip = getLocalIP();
+    if (ip !== '127.0.0.1') {
+      sensors.push({ unique_id: 'ip_address', state: ip, type: 'sensor', name: 'IP Address', icon: 'mdi:ip-network' });
     }
 
     // Battery (laptops/tablets only)
@@ -458,11 +454,9 @@ function loadDashboard() {
   if (!config.url) return;
 
   const haUrl = config.url.replace(/\/+$/, '');
-  // Clear any pending reconnect and stale socket
-  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
-  if (haWs) { try { haWs.removeAllListeners(); haWs.close(); } catch(_) {} haWs = null; }
-
-  wsConnecting = true;
+  // Drop the old socket; the dashboard's first load reconnects it. (Leaving
+  // wsConnecting=true here made that connectNotifications() call a no-op.)
+  cleanupWs();
   const token = auth.getAccessToken() || config.token;
   dashboardLoaded = false;
   authInjected = false;
@@ -711,13 +705,15 @@ function loadDashboard() {
 }
 
 // ── Utility: get local LAN IP ──
+// Any interface naming (eth0, wlan0, end0, enp3s0, wlp58s0...); virtual ones
+// (containers, bridges, VPNs) are skipped
+const VIRTUAL_IFACE = /^(docker|br-|veth|virbr|vmnet|vboxnet|lxc|lxd|tun|tap|wg|zt|tailscale|cni|flannel)/;
 function getLocalIP() {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
+    if (VIRTUAL_IFACE.test(name)) continue;
     for (const n of nets[name]) {
-      if (n.family === 'IPv4' && !n.internal && (name.startsWith('eth') || name.startsWith('wlan') || name.startsWith('end'))) {
-        return n.address;
-      }
+      if (n.family === 'IPv4' && !n.internal) return n.address;
     }
   }
   return '127.0.0.1';
