@@ -1231,27 +1231,19 @@ function handleNotificationCommand(message, data) {
 
   switch (cmd) {
     case 'command_screen_on':
-      runShell('vcgencmd display_power 1 2>/dev/null || xset dpms force on 2>/dev/null');
+      setDisplayPower(true);
       log('[Command] screen_on');
       return true;
 
     case 'command_screen_off':
-      runShell('vcgencmd display_power 0 2>/dev/null || xset dpms force off 2>/dev/null');
+      setDisplayPower(false);
       log('[Command] screen_off');
       return true;
 
     case 'command_screen_brightness_level':
       if (d.brightness !== undefined) {
         const val = Math.max(10, Math.min(100, parseInt(d.brightness)));
-        // Try rpi-backlight
-        try {
-          const blPath = '/sys/class/backlight/rpi-backlight/brightness';
-          if (fs.existsSync(blPath)) {
-            const maxBright = parseInt(fs.readFileSync('/sys/class/backlight/rpi-backlight/max_brightness', 'utf8').trim());
-            fs.writeFileSync(blPath, Math.round((val / 100) * maxBright).toString());
-          }
-        } catch (e) {}
-        runShell('ddcutil setvcp 10 ' + val + ' --sleep-multiplier 0.1 2>/dev/null');
+        setBacklightBrightness(val);
         log('[Command] brightness=' + val);
       }
       return true;
@@ -1528,19 +1520,16 @@ ipcMain.handle('delete-channel', (event, id) => {
 
 // ── Display Controls ──
 ipcMain.handle('display-on', () => {
-  runShell('vcgencmd display_power 1 2>/dev/null || xset dpms force on 2>/dev/null');
+  setDisplayPower(true);
   log('[Display] ON');
   return true;
 });
 ipcMain.handle('display-off', () => {
-  runShell('vcgencmd display_power 0 2>/dev/null || xset dpms force off 2>/dev/null');
+  setDisplayPower(false);
   log('[Display] OFF');
   return true;
 });
-ipcMain.handle('get-display-state', () => {
-  const r = runShell('vcgencmd display_power 2>/dev/null');
-  return r.includes('display_power=1') ? 'on' : r.includes('display_power=0') ? 'off' : 'unknown';
-});
+ipcMain.handle('get-display-state', () => getDisplayState());
 
 // ── System Power ──
 ipcMain.handle('reboot-system', () => {
@@ -1724,12 +1713,12 @@ setInterval(() => {
   const hhmm = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
   if (hhmm === nightSchedule.offTime && lastScheduleAction !== 'off-' + hhmm) {
     lastScheduleAction = 'off-' + hhmm;
-    runShell('vcgencmd display_power 0 2>/dev/null || xset dpms force off 2>/dev/null');
+    setDisplayPower(false);
     log('[Schedule] Display OFF at ' + hhmm);
   }
   if (hhmm === nightSchedule.onTime && lastScheduleAction !== 'on-' + hhmm) {
     lastScheduleAction = 'on-' + hhmm;
-    runShell('vcgencmd display_power 1 2>/dev/null || xset dpms force on 2>/dev/null');
+    setDisplayPower(true);
     log('[Schedule] Display ON at ' + hhmm);
   }
 }, 30000);
@@ -1758,6 +1747,70 @@ function runShell(cmd) {
   }
 }
 
+// ── Display / Backlight ──
+// Pi: vcgencmd + rpi-backlight. x86: intel_backlight, amdgpu_bl0, acpi_video0...
+function findBacklight() {
+  try {
+    const names = fs.readdirSync('/sys/class/backlight');
+    const name = names.includes('rpi-backlight') ? 'rpi-backlight' : names[0];
+    return name ? path.join('/sys/class/backlight', name) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeSysfs(file, value) {
+  try {
+    fs.writeFileSync(file, String(value));
+    return true;
+  } catch (e) {
+    // sysfs is usually root-only — fall back to passwordless sudo
+    return runShell('echo ' + value + ' | sudo -n tee ' + file + ' 2>/dev/null') !== '';
+  }
+}
+
+function setDisplayPower(on) {
+  if (runShell('vcgencmd display_power ' + (on ? 1 : 0) + ' 2>/dev/null').includes('display_power=')) return;
+  const bl = findBacklight();
+  if (bl && fs.existsSync(path.join(bl, 'bl_power')) && writeSysfs(path.join(bl, 'bl_power'), on ? 0 : 1)) return;
+  runShell('xset dpms force ' + (on ? 'on' : 'off') + ' 2>/dev/null');
+}
+
+function getDisplayState() {
+  const r = runShell('vcgencmd display_power 2>/dev/null');
+  if (r.includes('display_power=1')) return 'on';
+  if (r.includes('display_power=0')) return 'off';
+  const bl = findBacklight();
+  try {
+    if (bl) return fs.readFileSync(path.join(bl, 'bl_power'), 'utf8').trim() === '0' ? 'on' : 'off';
+  } catch (e) {}
+  return 'unknown';
+}
+
+function setBacklightBrightness(val) {
+  const bl = findBacklight();
+  if (bl) {
+    try {
+      const maxBright = parseInt(fs.readFileSync(path.join(bl, 'max_brightness'), 'utf8').trim());
+      if (writeSysfs(path.join(bl, 'brightness'), Math.round((val / 100) * maxBright))) return true;
+    } catch (e) {}
+  }
+  // External monitors via DDC/CI
+  runShell('ddcutil setvcp 10 ' + val + ' --sleep-multiplier 0.1 2>/dev/null');
+  return false;
+}
+
+function getBacklightBrightness() {
+  const bl = findBacklight();
+  try {
+    const cur = parseInt(fs.readFileSync(path.join(bl, 'brightness'), 'utf8').trim());
+    const max = parseInt(fs.readFileSync(path.join(bl, 'max_brightness'), 'utf8').trim());
+    return Math.round((cur / max) * 100);
+  } catch (e) {
+    return 100;
+  }
+}
+
 ipcMain.handle('set-volume', (event, vol) => {
   runShell('amixer set Master ' + vol + '%');
   log('[System] Volume set to ' + vol + '%');
@@ -1770,21 +1823,7 @@ ipcMain.handle('set-mute', (event, muted) => {
 });
 
 ipcMain.handle('set-brightness', (event, val) => {
-  // Try ddcutil first (external monitors)
-  const r = runShell('ddcutil setvcp 10 ' + val + ' --sleep-multiplier 0.1 2>/dev/null');
-  if (!r) {
-    // Raspberry Pi — try rpi-backlight first, then pwm
-    try {
-      const blPath = '/sys/class/backlight/rpi-backlight/brightness';
-      if (fs.existsSync(blPath)) {
-        const maxBright = parseInt(fs.readFileSync('/sys/class/backlight/rpi-backlight/max_brightness', 'utf8').trim());
-        const newVal = Math.round((val / 100) * maxBright);
-        fs.writeFileSync(blPath, newVal.toString());
-      }
-    } catch (e) {
-      log('[System] Brightness failed: ' + e.message);
-    }
-  }
+  setBacklightBrightness(val);
   log('[System] Brightness set to ' + val + '%');
   return true;
 });
@@ -1813,8 +1852,8 @@ ipcMain.handle('get-system-info', () => {
 
   return {
     volume,
-    brightness: 100,
-    hasBacklight: fs.existsSync('/sys/class/backlight/rpi-backlight/brightness') || runShell('ddcutil detect 2>/dev/null').includes('Display'),
+    brightness: getBacklightBrightness(),
+    hasBacklight: !!findBacklight() || runShell('ddcutil detect 2>/dev/null').includes('Display'),
     deviceName: config ? config.deviceName : 'Unknown',
     version: 'v' + APP_VERSION,
     sensors: config && config.registered ? 'active' : 'inactive',

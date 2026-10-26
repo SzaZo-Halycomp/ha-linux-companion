@@ -9,6 +9,7 @@
     "start": "electron .",
     "build": "electron-builder --linux",
     "build:arm64": "electron-builder --linux --arm64",
+    "build:x64": "electron-builder --linux --x64",
     "build:deb": "electron-builder --linux deb",
     "build:appimage": "electron-builder --linux AppImage"
   },
@@ -25,13 +26,15 @@
         {
           "target": "AppImage",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "deb",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ]

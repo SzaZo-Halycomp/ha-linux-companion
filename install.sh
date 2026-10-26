@@ -185,6 +185,12 @@ if [ -n "${WAYLAND_DISPLAY_VALUE}" ]; then
   export WAYLAND_DISPLAY="\${WAYLAND_DISPLAY:-${WAYLAND_DISPLAY_VALUE}}"
 fi
 export XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}"
+# Started outside the desktop session (systemd, ssh): pick up a running Wayland
+# compositor, otherwise Electron falls back to X11 and Xwayland rejects it
+if [ -z "\${WAYLAND_DISPLAY}" ] && [ -S "\${XDG_RUNTIME_DIR}/wayland-0" ]; then
+  export WAYLAND_DISPLAY=wayland-0
+fi
+[ -n "\${WAYLAND_DISPLAY}" ] && export XDG_SESSION_TYPE=wayland
 cd "${INSTALL_DIR}"
 exec ./node_modules/electron/dist/electron . ${ELECTRON_FLAGS} "\$@"
 RUNEOF
