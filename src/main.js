@@ -1251,7 +1251,7 @@ function handleNotificationCommand(message, data) {
     case 'command_volume_level':
       if (d.volume_level !== undefined) {
         const vol = Math.max(0, Math.min(100, Math.round(parseFloat(d.volume_level) * 100)));
-        runShell('amixer set Master ' + vol + '%');
+        setVolume(vol);
         log('[Command] volume=' + vol + '%');
       }
       return true;
@@ -1811,14 +1811,38 @@ function getBacklightBrightness() {
   }
 }
 
-ipcMain.handle('set-volume', (event, vol) => {
+// ── Volume ──
+// PipeWire/PulseAudio: the default sink (what the desktop mixer shows).
+// Plain ALSA: the card's Master control.
+function usePactl() {
+  return audioBackend === 'pipewire' || audioBackend === 'pulseaudio';
+}
+
+function setVolume(vol) {
+  if (usePactl() && runShell('pactl set-sink-volume @DEFAULT_SINK@ ' + vol + '% && echo ok') === 'ok') return;
   runShell('amixer set Master ' + vol + '%');
+}
+
+function setMute(muted) {
+  if (usePactl() && runShell('pactl set-sink-mute @DEFAULT_SINK@ ' + (muted ? 1 : 0) + ' && echo ok') === 'ok') return;
+  runShell('amixer set Master ' + (muted ? 'mute' : 'unmute'));
+}
+
+function getVolume() {
+  const out = (usePactl() && runShell('pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null')) ||
+              runShell('amixer get Master 2>/dev/null');
+  const m = out.match(/(\d+)%/);
+  return m ? parseInt(m[1]) : 50;
+}
+
+ipcMain.handle('set-volume', (event, vol) => {
+  setVolume(vol);
   log('[System] Volume set to ' + vol + '%');
   return true;
 });
 
 ipcMain.handle('set-mute', (event, muted) => {
-  runShell('amixer set Master ' + (muted ? 'mute' : 'unmute'));
+  setMute(muted);
   return true;
 });
 
@@ -1845,13 +1869,8 @@ ipcMain.handle('bluetooth-connect', (event, mac) => {
 });
 
 ipcMain.handle('get-system-info', () => {
-  let volume = 50;
-  const volOut = runShell('amixer get Master 2>/dev/null');
-  const volMatch = volOut.match(/\[(\d+)%\]/);
-  if (volMatch) volume = parseInt(volMatch[1]);
-
   return {
-    volume,
+    volume: getVolume(),
     brightness: getBacklightBrightness(),
     hasBacklight: !!findBacklight() || runShell('ddcutil detect 2>/dev/null').includes('Display'),
     deviceName: config ? config.deviceName : 'Unknown',
