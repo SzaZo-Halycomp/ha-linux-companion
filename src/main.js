@@ -813,6 +813,8 @@ function stopPushServer() {
 
 // ── Notifications via WebSocket ──
 let haWs = null;
+// HA websocket message ids must increase per connection; reused ids are rejected
+let wsMsgId = 0;
 let wsReconnectTimer = null;
 
 let wsConnecting = false;
@@ -857,6 +859,7 @@ function connectNotifications() {
   haWs.on('open', () => {
     wsConnecting = false;
     // Auth
+    wsMsgId = 0;
     haWs.send(JSON.stringify({ type: 'auth', access_token: accessToken }));
     log('[WS] Connected');
   });
@@ -865,14 +868,18 @@ function connectNotifications() {
     try {
       const msg = JSON.parse(data.toString());
 
+      if (msg.type === 'result' && !msg.success) {
+        log('[WS] Request ' + msg.id + ' failed: ' + JSON.stringify(msg.error));
+      }
+
       if (msg.type === 'auth_ok') {
         // Subscribe to HA events
-        haWs.send(JSON.stringify({ id: 1, type: 'subscribe_events', event_type: 'persistent_notifications_updated' }));
+        haWs.send(JSON.stringify({ id: ++wsMsgId, type: 'subscribe_events', event_type: 'persistent_notifications_updated' }));
 
         // Subscribe to mobile_app push notification channel (standard HA way)
         if (config.webhookId) {
           haWs.send(JSON.stringify({
-            id: 2, type: 'mobile_app/push_notification_channel',
+            id: ++wsMsgId, type: 'mobile_app/push_notification_channel',
             webhook_id: config.webhookId, support_confirm: true,
           }));
           log('[WS] Subscribed to push notification channel');
@@ -891,7 +898,7 @@ function connectNotifications() {
             // Command executed, confirm and skip toast
             if (ev.hass_confirm_id) {
               haWs.send(JSON.stringify({
-                id: 3, type: 'mobile_app/push_notification_confirm',
+                id: ++wsMsgId, type: 'mobile_app/push_notification_confirm',
                 webhook_id: config.webhookId, confirm_id: ev.hass_confirm_id,
               }));
             }
@@ -908,7 +915,7 @@ function connectNotifications() {
           // Confirm receipt
           if (ev.hass_confirm_id) {
             haWs.send(JSON.stringify({
-              id: 3, type: 'mobile_app/push_notification_confirm',
+              id: ++wsMsgId, type: 'mobile_app/push_notification_confirm',
               webhook_id: config.webhookId, confirm_id: ev.hass_confirm_id,
             }));
           }
