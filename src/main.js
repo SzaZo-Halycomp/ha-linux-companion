@@ -472,11 +472,6 @@ function loadDashboard() {
       mainWindow.webContents.on('did-finish-load', function onLoad() {
         if (dashboardLoaded) return;
         dashboardLoaded = true;
-        mainWindow.webContents.insertCSS(
-          // Base: hide sidebar on kiosk panels
-          'ha-sidebar { display: none !important; } ' +
-          'hui-root { --sidebar-width: 0px !important; }'
-        );
 
         // Responsive compact layout for small panels (e.g. 7" 800x480).
         // webContents.insertCSS does NOT pierce HA shadow DOM, so we inject a
@@ -568,82 +563,94 @@ function loadDashboard() {
             mainWindow.webContents.executeJavaScript(compactCSS).catch(function() {});
           }
           applyLayoutZoom();
+          injectUI();
         });
         if (layoutMode === 'compact') {
           mainWindow.webContents.executeJavaScript(compactCSS).catch(function() {});
         }
         applyLayoutZoom();
 
-        // Inject i18n (must run before overlay)
-        try {
-          const localesDir = path.join(__dirname, 'locales');
-          const locales = {};
-          for (const lang of SUPPORTED_LANGS) {
-            const filePath = path.join(localesDir, lang, 'translation.json');
-            locales[lang] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-          }
-          const i18nCode = [
-            '(function() {',
-            '  var LOCALES = ' + JSON.stringify(locales) + ';',
-            // Saved choice, then HA's UI language, then the system language, then English
-            '  function pick(l) { l = String(l || "").toLowerCase().split(/[-_]/)[0]; return LOCALES[l] ? l : null; }',
-            '  var haLang = null;',
-            '  try { haLang = JSON.parse(localStorage.getItem("selectedLanguage")); } catch (e) {}',
-            '  var currentLang = pick(localStorage.getItem("ha_lang")) || pick(haLang) ||',
-            '    pick(document.documentElement.lang) || pick(navigator.language) || "en";',
-            '  function t(key, params) {',
-            '    var langData = LOCALES[currentLang] || LOCALES["en"] || {};',
-            '    var text = langData[key] || key;',
-            '    for (var k in params) { text = text.replace("{{" + k + "}}", params[k]); }',
-            '    return text;',
-            '  }',
-            '  window.__haLocales = LOCALES;',
-            '  window.__haLang = currentLang;',
-            '  window.__haT = t;',
-            '})();'
-          ].join('\n');
-          mainWindow.webContents.executeJavaScript(i18nCode).then(() => {
-            log('[i18n] i18n injected successfully');
+        // Kiosk CSS, i18n, settings overlay and toasts live in the page, so a full
+        // reload (e.g. changing language) wipes them: re-inject on every load.
+        const injectUI = function() {
+          mainWindow.webContents.insertCSS(
+            // Base: hide sidebar on kiosk panels
+            'ha-sidebar { display: none !important; } ' +
+            'hui-root { --sidebar-width: 0px !important; }'
+          );
 
-            // Inject settings overlay (must run AFTER i18n)
-            try {
-              const overlayCode = fs.readFileSync(path.join(__dirname, 'views', 'overlay.js'), 'utf8');
-              mainWindow.webContents.executeJavaScript(overlayCode).then(() => {
-                log('[Overlay] Injected successfully');
-              }).catch(e => {
+          // Inject i18n (must run before overlay)
+          try {
+            const localesDir = path.join(__dirname, 'locales');
+            const locales = {};
+            for (const lang of SUPPORTED_LANGS) {
+              const filePath = path.join(localesDir, lang, 'translation.json');
+              locales[lang] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            }
+            const i18nCode = [
+              '(function() {',
+              '  var LOCALES = ' + JSON.stringify(locales) + ';',
+              // Saved choice, then HA's UI language, then the system language, then English
+              '  function pick(l) { l = String(l || "").toLowerCase().split(/[-_]/)[0]; return LOCALES[l] ? l : null; }',
+              '  var haLang = null;',
+              '  try { haLang = JSON.parse(localStorage.getItem("selectedLanguage")); } catch (e) {}',
+              '  var currentLang = pick(localStorage.getItem("ha_lang")) || pick(haLang) ||',
+              '    pick(document.documentElement.lang) || pick(navigator.language) || "en";',
+              '  function t(key, params) {',
+              '    var langData = LOCALES[currentLang] || LOCALES["en"] || {};',
+              '    var text = langData[key] || key;',
+              '    for (var k in params) { text = text.replace("{{" + k + "}}", params[k]); }',
+              '    return text;',
+              '  }',
+              '  window.__haLocales = LOCALES;',
+              '  window.__haLang = currentLang;',
+              '  window.__haT = t;',
+              '})();'
+            ].join('\n');
+            mainWindow.webContents.executeJavaScript(i18nCode).then(() => {
+              log('[i18n] i18n injected successfully');
+
+              // Inject settings overlay (must run AFTER i18n)
+              try {
+                const overlayCode = fs.readFileSync(path.join(__dirname, 'views', 'overlay.js'), 'utf8');
+                mainWindow.webContents.executeJavaScript(overlayCode).then(() => {
+                  log('[Overlay] Injected successfully');
+                }).catch(e => {
+                  log('[Overlay] Error injecting: ' + e.message);
+                });
+              } catch (e) {
                 log('[Overlay] Error injecting: ' + e.message);
-              });
-            } catch (e) {
-              log('[Overlay] Error injecting: ' + e.message);
-            }
-          }).catch(e => {
-            log('[i18n] Error injecting: ' + e.message);
-            // Even if i18n fails, inject overlay
-            try {
-              const overlayCode = fs.readFileSync(path.join(__dirname, 'views', 'overlay.js'), 'utf8');
-              mainWindow.webContents.executeJavaScript(overlayCode).then(() => {
-                log('[Overlay] Injected successfully');
-              }).catch(e2 => {
+              }
+            }).catch(e => {
+              log('[i18n] Error injecting: ' + e.message);
+              // Even if i18n fails, inject overlay
+              try {
+                const overlayCode = fs.readFileSync(path.join(__dirname, 'views', 'overlay.js'), 'utf8');
+                mainWindow.webContents.executeJavaScript(overlayCode).then(() => {
+                  log('[Overlay] Injected successfully');
+                }).catch(e2 => {
+                  log('[Overlay] Error injecting: ' + e2.message);
+                });
+              } catch (e2) {
                 log('[Overlay] Error injecting: ' + e2.message);
-              });
-            } catch (e2) {
-              log('[Overlay] Error injecting: ' + e2.message);
-            }
-          });
-        } catch (e) {
-          log('[i18n] Error loading locales: ' + e.message);
-        }
+              }
+            });
+          } catch (e) {
+            log('[i18n] Error loading locales: ' + e.message);
+          }
 
-        // Inject toast notification overlay
-        try {
-          const toastCss = fs.readFileSync(path.join(__dirname, 'views', 'toast.css'), 'utf8');
-          let toastJs = fs.readFileSync(path.join(__dirname, 'views', 'toast.js'), 'utf8');
-          toastJs = toastJs.replace('{{TOAST_CSS}}', JSON.stringify(toastCss).slice(1, -1));
-          mainWindow.webContents.executeJavaScript(toastJs);
-          log('[Toast] Overlay injected');
-        } catch (e) {
-          log('[Toast] Error injecting: ' + e.message);
-        }
+          // Inject toast notification overlay
+          try {
+            const toastCss = fs.readFileSync(path.join(__dirname, 'views', 'toast.css'), 'utf8');
+            let toastJs = fs.readFileSync(path.join(__dirname, 'views', 'toast.js'), 'utf8');
+            toastJs = toastJs.replace('{{TOAST_CSS}}', JSON.stringify(toastCss).slice(1, -1));
+            mainWindow.webContents.executeJavaScript(toastJs);
+            log('[Toast] Overlay injected');
+          } catch (e) {
+            log('[Toast] Error injecting: ' + e.message);
+          }
+        };
+        injectUI();
 
         if (haClient) startSensorUpdates();
         connectNotifications();
