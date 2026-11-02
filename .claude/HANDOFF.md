@@ -41,6 +41,11 @@ laptop (`/srv/omnIQ/ha-linux-companion`). Use it to continue on another machine.
   `tts.edge_tts` returned HTTP 500 from `/api/tts_get_url`; `tts.edge_tts_2` returned a
   `/api/tts_proxy/...mp3` path but HA never served the file (hung >2 min). HA-side issue.
 
+**Tablets**: the user has 3 touch tablets running the app from a git clone with a
+`cage -- npm start` loop (`npm start` = `electron .`, runs `src/` directly, no build;
+update = `git pull` + quit the app so the loop restarts it). Easy to update the wrong
+one — when a fix "doesn't work" there, first check which tablet / folder runs it.
+
 **Other machine**: the user cloned the fork there and will install with
 `sudo HA_HOST_WAIT=none bash install.sh` + desktop auto-login (instructions were given:
 autostart `.desktop` only; do not also enable the systemd unit → two instances).
@@ -93,7 +98,7 @@ Nothing is uncommitted at the time of writing.
   `:hover` only under `@media (hover: hover)`). Mouse cursor hidden on touch panels:
   from start without a fine pointer, after any touch otherwise, back on real mouse
   move; rule adopted into every shadow root (insertCSS alone can't reach HA's shadow
-  DOM). Tested via CDP touch/mouse emulation; the user still has to try it on the tablet.
+  DOM). Tested via CDP touch/mouse emulation, then confirmed by the user on a real tablet.
 - Retested via HA on the laptop: play/stop audio (user heard it), volume 0.2/0.8.
 
 ## Remote commands (all in `handleNotificationCommand`, src/main.js)
