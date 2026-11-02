@@ -1,0 +1,223 @@
+# HA Linux Companion — test card with a button for every remote command
+#
+# Needs script.panel_command (panel_command_script.yaml).
+# Install: open a dashboard → ✏ Edit → + Add card → Manual → paste this file.
+# Search & replace CHANGE_TO_ACTUAL_DEVICENAME below with your panel's name.
+# CHANGE_TO_ACTUAL_DEVICENAME: the panel's device name as HA writes it in the notify service:
+# lowercase, spaces and dashes become _ (device "Living-Room Panel" -> mobile_app_living_room_panel).
+# List them in Developer tools > Actions by typing notify.mobile_app.
+# Also replace CHANGE_TO_HA_URL: your Home Assistant address as the panel reaches it, e.g. http://192.168.1.10:8123
+
+type: vertical-stack
+cards:
+  # ── Display ──
+  - type: heading
+    heading: Display
+    icon: mdi:monitor
+  - type: grid
+    columns: 4
+    square: false
+    cards:
+      - type: button
+        name: Screen off
+        icon: mdi:monitor-off
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_screen_off }
+      - type: button
+        name: Screen on
+        icon: mdi:monitor
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_screen_on }
+      - type: button
+        name: Brightness 30%
+        icon: mdi:brightness-5
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_screen_brightness_level, data: { brightness: 30 } }
+      - type: button
+        name: Brightness 100%
+        icon: mdi:brightness-7
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_screen_brightness_level, data: { brightness: 100 } }
+
+  # ── Audio & Bluetooth ──
+  - type: heading
+    heading: Audio & Bluetooth
+    icon: mdi:volume-high
+  - type: grid
+    columns: 4
+    square: false
+    cards:
+      - type: button
+        name: Volume 30%
+        icon: mdi:volume-low
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_volume_level, data: { volume_level: 0.3 } }
+      - type: button
+        name: Volume 100%
+        icon: mdi:volume-high
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_volume_level, data: { volume_level: 1 } }
+      - type: button
+        name: Play audio
+        icon: mdi:play-circle
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          # Any mp3/ogg/wav/stream URL; a path starting with / is taken from your HA
+          # (e.g. /local/doorbell.mp3 for config/www/doorbell.mp3). volume 0..1 is optional.
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_play_audio, data: { url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", volume: 0.5 } }
+      - type: button
+        name: Stop audio
+        icon: mdi:stop-circle
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_stop_audio }
+      - type: button
+        name: Bluetooth off
+        icon: mdi:bluetooth-off
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_bluetooth, data: { bluetooth: turn_off } }
+      - type: button
+        name: Bluetooth on
+        icon: mdi:bluetooth
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_bluetooth, data: { bluetooth: turn_on } }
+
+  # ── Notifications ──
+  # Test DND: "DND on" → "Test notification" (no popup, only in history)
+  # → "Critical" (pops up anyway) → "DND off" → "Test notification" (pops up)
+  - type: heading
+    heading: Notifications
+    icon: mdi:bell
+  - type: grid
+    columns: 4
+    square: false
+    cards:
+      - type: button
+        name: Test notification
+        icon: mdi:bell-ring
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: "Hello from Home Assistant", title: Test }
+      - type: button
+        name: Critical
+        icon: mdi:alert
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: "Critical test message", title: Alert, data: { priority: critical } }
+      - type: button
+        name: DND on
+        icon: mdi:bell-sleep
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_dnd, data: { dnd: "on" } }
+      - type: button
+        name: DND off
+        icon: mdi:bell
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_dnd, data: { dnd: "off" } }
+
+  # ── Page ──
+  - type: heading
+    heading: Page
+    icon: mdi:view-dashboard
+  - type: grid
+    columns: 4
+    square: false
+    cards:
+      - type: button
+        name: Go to Energy
+        icon: mdi:lightning-bolt
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_navigate, data: { navigate: /energy } }
+      - type: button
+        name: Back to dashboard
+        icon: mdi:home
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_navigate, data: { navigate: /lovelace/default_view } }
+      - type: button
+        name: Open History URL
+        icon: mdi:web
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          # open_url takes any address; change it to your HA URL or another site
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_open_url, data: { url: "CHANGE_TO_HA_URL/history" } }
+      - type: button
+        name: Wallpaper
+        icon: mdi:image
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          # Shown behind the dashboard until the next reload
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_set_wallpaper, data: { url: "CHANGE_TO_HA_URL/static/icons/favicon-192x192.png" } }
+
+  # ── App ──
+  - type: heading
+    heading: App
+    icon: mdi:application
+  - type: grid
+    columns: 4
+    square: false
+    cards:
+      - type: button
+        name: Update sensors
+        icon: mdi:refresh-circle
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_update_sensors }
+      - type: button
+        name: Reload page
+        icon: mdi:reload
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_reload_dashboard }
+      - type: button
+        name: Restart app
+        icon: mdi:restart
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_restart_app }
+          confirmation:
+            text: Restart the companion app on the panel?
+      - type: button
+        name: Unknown command
+        icon: mdi:help-circle
+        tap_action:
+          action: perform-action
+          perform_action: script.panel_command
+          # Should do nothing and show no popup; logged as "Unknown command"
+          data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_does_not_exist }
+
+  # command_set_theme is left out on purpose: it calls frontend.set_theme, which changes
+  # the default theme for EVERY user and device of this Home Assistant, not just the panel.
+  # data: { target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME, command: command_set_theme, data: { theme: default } }

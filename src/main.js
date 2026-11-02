@@ -1384,6 +1384,18 @@ function handleNotificationCommand(message, data) {
       }
       return true;
 
+    case 'command_play_audio':
+      if (d.url) {
+        playAudio(d.url, d.volume);
+        log('[Command] play_audio=' + d.url);
+      }
+      return true;
+
+    case 'command_stop_audio':
+      stopAudio();
+      log('[Command] stop_audio');
+      return true;
+
     case 'command_set_theme':
       // Set HA theme via WebSocket
       if (d.theme && haWs && haWs.readyState === 1) {
@@ -1769,6 +1781,49 @@ ipcMain.handle('check-updates', async () => {
     return { error: e.message };
   }
 });
+
+// ── Audio playback (command_play_audio / command_stop_audio) ──
+// Played in a hidden window: survives dashboard reloads, and is not bound by
+// the HA page's mixed-content rules. Any format/stream Chromium can play.
+let audioWindow = null;
+
+async function getAudioWindow() {
+  if (!audioWindow || audioWindow.isDestroyed()) {
+    audioWindow = new BrowserWindow({
+      show: false, skipTaskbar: true,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
+    });
+    await audioWindow.loadURL('about:blank');
+  }
+  return audioWindow;
+}
+
+async function playAudio(url, volume) {
+  // "/api/tts_proxy/..." and other HA paths are relative to the HA server
+  if (url.startsWith('/') && config && config.url) url = config.url.replace(/\/+$/, '') + url;
+  const vol = volume !== undefined ? Math.max(0, Math.min(1, parseFloat(volume))) : 1;
+  try {
+    const win = await getAudioWindow();
+    const result = await win.webContents.executeJavaScript(
+      '(function() {' +
+      '  if (window.__audio) window.__audio.pause();' +
+      '  var a = new Audio(' + JSON.stringify(url) + ');' +
+      '  a.volume = ' + (isNaN(vol) ? 1 : vol) + ';' +
+      '  window.__audio = a;' +
+      '  return a.play().then(function() { return "playing"; }, function(e) { return "error: " + e.message; });' +
+      '})()'
+    );
+    log('[Audio] ' + url + ': ' + result);
+  } catch (e) {
+    log('[Audio] Play error: ' + e.message);
+  }
+}
+
+function stopAudio() {
+  if (audioWindow && !audioWindow.isDestroyed()) {
+    audioWindow.webContents.executeJavaScript('if (window.__audio) { window.__audio.pause(); window.__audio = null; }').catch(() => {});
+  }
+}
 
 // ── Notification settings ──
 // Set from the settings panel and command_dnd; applied in showNotification()

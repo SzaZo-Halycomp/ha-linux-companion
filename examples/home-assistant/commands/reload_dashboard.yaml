@@ -1,0 +1,8 @@
+# Reload the dashboard page.
+# Paste into Developer tools > Actions (YAML mode).
+# CHANGE_TO_ACTUAL_DEVICENAME: the panel's device name as HA writes it in the notify service:
+# lowercase, spaces and dashes become _ (device "Living-Room Panel" -> mobile_app_living_room_panel).
+# List them in Developer tools > Actions by typing notify.mobile_app.
+action: notify.mobile_app_CHANGE_TO_ACTUAL_DEVICENAME
+data:
+  message: command_reload_dashboard

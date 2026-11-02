@@ -1,0 +1,75 @@
+# HA Linux Companion — send a remote command to a panel
+#
+# Install: Settings → Automations & scenes → Scripts → ⋮ Add script → ⋮ Edit in YAML,
+# paste everything below the "panel_command:" line (from "alias:" on), save.
+# The script id must be panel_command (the test dashboard card calls script.panel_command).
+# Or put the whole file into scripts.yaml.
+# Replace CHANGE_TO_ACTUAL_DEVICENAME (default panel) below.
+# CHANGE_TO_ACTUAL_DEVICENAME: the panel's device name as HA writes it in the notify service:
+# lowercase, spaces and dashes become _ (device "Living-Room Panel" -> mobile_app_living_room_panel).
+# List them in Developer tools > Actions by typing notify.mobile_app.
+#
+# Call it from anywhere:
+#   action: script.panel_command
+#   data:
+#     command: command_screen_off
+#     target: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME   # optional, defaults to the panel below
+#     data: { brightness: 50 }          # optional command parameters
+
+panel_command:
+  alias: Panel command
+  description: Send a HA Linux Companion remote command (or a plain notification) to a panel
+  mode: queued
+  icon: mdi:remote
+  fields:
+    command:
+      name: Command
+      description: command_* name, or any text for a normal notification
+      required: true
+      example: command_screen_off
+      selector:
+        select:
+          custom_value: true
+          options:
+            - command_screen_on
+            - command_screen_off
+            - command_screen_brightness_level
+            - command_volume_level
+            - command_play_audio
+            - command_stop_audio
+            - command_dnd
+            - command_bluetooth
+            - command_update_sensors
+            - command_navigate
+            - command_open_url
+            - command_reload_dashboard
+            - command_set_wallpaper
+            - command_restart_app
+            - command_set_theme
+    data:
+      name: Parameters
+      description: 'Command parameters, e.g. {"brightness": 50}'
+      example: '{"brightness": 50}'
+      selector:
+        object:
+    title:
+      name: Title
+      description: Only for plain notifications
+      selector:
+        text:
+    target:
+      name: Panel
+      description: notify service of the panel, without "notify."
+      default: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME
+      example: mobile_app_CHANGE_TO_ACTUAL_DEVICENAME
+      selector:
+        text:
+  variables:
+    notify_target: "{{ target | default('mobile_app_CHANGE_TO_ACTUAL_DEVICENAME', true) }}"
+    command_data: "{{ data | default({}, true) }}"
+  sequence:
+    - action: "notify.{{ notify_target }}"
+      data:
+        message: "{{ command }}"
+        title: "{{ title | default('', true) }}"
+        data: "{{ command_data }}"

@@ -1,0 +1,13 @@
+# Play a sound or stream (mp3/ogg/wav/radio). A URL starting with / is taken
+# from your HA, e.g. /local/doorbell.mp3 for config/www/doorbell.mp3. volume 0-1 is optional.
+# A new play_audio replaces the current sound; stop it with stop_audio.yaml.
+# Paste into Developer tools > Actions (YAML mode).
+# CHANGE_TO_ACTUAL_DEVICENAME: the panel's device name as HA writes it in the notify service:
+# lowercase, spaces and dashes become _ (device "Living-Room Panel" -> mobile_app_living_room_panel).
+# List them in Developer tools > Actions by typing notify.mobile_app.
+action: notify.mobile_app_CHANGE_TO_ACTUAL_DEVICENAME
+data:
+  message: command_play_audio
+  data:
+    url: https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3
+    volume: 0.5
