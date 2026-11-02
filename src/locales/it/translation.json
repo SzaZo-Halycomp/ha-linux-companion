@@ -75,5 +75,7 @@
   "batteryDischarging": "In scarica",
   "batteryFull": "Carica",
   "batteryNotCharging": "Non in carica",
+  "batteryAlarm": "🔋 Allarme batteria scarica",
+  "batteryLow": "Batteria scarica, collega il caricatore",
   "secondsLabel": "sec"
 }

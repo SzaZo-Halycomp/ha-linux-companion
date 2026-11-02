@@ -75,5 +75,7 @@
   "batteryDischarging": "Entlädt",
   "batteryFull": "Voll",
   "batteryNotCharging": "Lädt nicht",
+  "batteryAlarm": "🔋 Akku-Warnton",
+  "batteryLow": "Akku schwach, Ladegerät anschließen",
   "secondsLabel": "Sek"
 }

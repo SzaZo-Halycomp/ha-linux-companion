@@ -323,6 +323,7 @@
     <div class="comp-notif-row"><div class="comp-label">${t('notifications')}</div><button class="comp-toggle" id="comp-notif-enabled"></button></div>
     <div class="comp-notif-row"><div class="comp-label">${t('sound')}</div><button class="comp-toggle on" id="comp-notif-sound"></button></div>
     <div class="comp-notif-row"><div class="comp-label">${t('doNotDisturb')}</div><button class="comp-toggle" id="comp-notif-dnd"></button></div>
+    <div class="comp-notif-row" id="comp-battery-alarm-row" style="display:none"><div class="comp-label">${t('batteryAlarm')}</div><button class="comp-toggle" id="comp-battery-alarm"></button></div>
     <div class="comp-notif-row"><div class="comp-label">${t('popupDuration')}</div><select class="comp-select" id="comp-notif-duration"><option value="4000">4 ${t('secondsLabel')}</option><option value="6000" selected>6 ${t('secondsLabel')}</option><option value="10000">10 ${t('secondsLabel')}</option><option value="0">${t('never')}</option></select></div>
     <div class="comp-notif-row"><div class="comp-label">${t('melody')}</div><select class="comp-select" id="comp-notif-melody"><option value="default">Default</option><option value="success">Success</option><option value="warning">Warning</option><option value="error">Error</option></select></div>
     <div id="comp-custom-sounds" style="display:none">
@@ -522,6 +523,7 @@
         html += '<div class="comp-info-item"><div class="comp-info-label">CPU Temp</div><div class="comp-info-value" style="color:' + tempColor + '">' + hw.cpuTempC + '°C</div>';
         html += '<div class="comp-info-bar"><div class="comp-info-bar-fill" style="width:' + Math.min(100, parseFloat(hw.cpuTempC)) + '%;background:' + tempColor + '"></div></div></div>';
       }
+      document.getElementById('comp-battery-alarm-row').style.display = hw.battery ? '' : 'none';
       if (hw.battery) {
         var batColor = batteryColor(hw.battery);
         html += '<div class="comp-info-item"><div class="comp-info-label">' + t('battery') + '</div><div class="comp-info-value" style="color:' + batColor + '">' + (hw.battery.charging ? '⚡' : '') + hw.battery.percent + '% · ' + batteryStatusText(hw.battery) + '</div>';
@@ -619,6 +621,7 @@
   var notifEnabledBtn = document.getElementById('comp-notif-enabled');
   var notifSoundBtn = document.getElementById('comp-notif-sound');
   var notifDndBtn = document.getElementById('comp-notif-dnd');
+  var batteryAlarmBtn = document.getElementById('comp-battery-alarm');
   var notifDuration = document.getElementById('comp-notif-duration');
   var notifMelody = document.getElementById('comp-notif-melody');
 
@@ -628,6 +631,7 @@
     if (notifSettings.enabled === false) notifEnabledBtn.classList.remove('on'); else notifEnabledBtn.classList.add('on');
     if (notifSettings.sound === false) notifSoundBtn.classList.remove('on'); else notifSoundBtn.classList.add('on');
     if (notifSettings.dnd) notifDndBtn.classList.add('on'); else notifDndBtn.classList.remove('on');
+    if (notifSettings.batteryAlert === false) batteryAlarmBtn.classList.remove('on'); else batteryAlarmBtn.classList.add('on');
     if (notifSettings.duration != null) notifDuration.value = notifSettings.duration;
     if (notifSettings.melody && !notifSettings.melody.startsWith('custom:')) notifMelody.value = notifSettings.melody;
   }
@@ -650,6 +654,7 @@
   notifEnabledBtn.addEventListener('click', function() { notifSettings.enabled = !notifEnabledBtn.classList.contains('on'); notifEnabledBtn.classList.toggle('on'); saveNotifSettings(); });
   notifSoundBtn.addEventListener('click', function() { notifSettings.sound = !notifSoundBtn.classList.contains('on'); notifSoundBtn.classList.toggle('on'); saveNotifSettings(); if (notifSettings.sound) ipc('playNotificationSound', notifMelody.value); });
   notifDndBtn.addEventListener('click', function() { notifSettings.dnd = !notifDndBtn.classList.contains('on'); notifDndBtn.classList.toggle('on'); saveNotifSettings(); });
+  batteryAlarmBtn.addEventListener('click', function() { notifSettings.batteryAlert = !batteryAlarmBtn.classList.contains('on'); batteryAlarmBtn.classList.toggle('on'); saveNotifSettings(); });
   notifDuration.addEventListener('change', function() { notifSettings.duration = parseInt(notifDuration.value); saveNotifSettings(); });
   notifMelody.addEventListener('change', function() { notifSettings.melody = notifMelody.value; saveNotifSettings(); ipc('playNotificationSound', notifMelody.value); });
 

@@ -75,5 +75,7 @@
   "batteryDischarging": "Discharging",
   "batteryFull": "Full",
   "batteryNotCharging": "Not charging",
+  "batteryAlarm": "🔋 Low battery alarm",
+  "batteryLow": "Battery low, connect the charger",
   "secondsLabel": "sec"
 }

@@ -1840,6 +1840,59 @@ function setNotifSettings(s) {
   return notifSettings;
 }
 
+// ── Low battery alarm ──
+// While discharging: a beep each time the level passes a 5% step, every 1%
+// below 10%, and a repeating alarm below 5% until a charger is connected.
+// Ignores DND / notification sound (it is a warning); notifSettings.batteryAlert
+// = false turns it off. Never beeps for the level the app starts at.
+const BATTERY_ALARM_REPEAT = 10000;
+let batteryAlertLevel = null;  // last announced step; null = not discharging yet
+let batteryAlarmTimer = null;
+
+function showBatteryToast(percent, priority) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.executeJavaScript(
+    '(function() { var t = window.__haT || function(k) { return { battery: "Battery", batteryLow: "Battery low, connect the charger" }[k]; };' +
+    '  window.__haToast && window.__haToast.show({ title: t("battery") + " ' + percent + '%", message: t("batteryLow"),' +
+    '    priority: "' + priority + '", icon: "🔋", sound: false }); })()'
+  ).catch(() => {});
+}
+
+function stopBatteryAlarm() {
+  if (batteryAlarmTimer) { clearInterval(batteryAlarmTimer); batteryAlarmTimer = null; }
+}
+
+function checkBatteryAlarm() {
+  const bat = getBatteryInfo();
+  const discharging = bat && bat.status === 'discharging' && bat.acOnline !== true;
+  if (!discharging || notifSettings.batteryAlert === false) {
+    batteryAlertLevel = null;
+    stopBatteryAlarm();
+    return;
+  }
+  const percent = bat.percent;
+  if (percent < 5) {
+    if (!batteryAlarmTimer) {
+      log('[Battery] Critical ' + percent + '%, alarm on');
+      showBatteryToast(percent, 'urgent');
+      playNotificationSound('error');
+      batteryAlarmTimer = setInterval(() => playNotificationSound('error'), BATTERY_ALARM_REPEAT);
+    }
+    batteryAlertLevel = percent;
+    return;
+  }
+  stopBatteryAlarm();
+  // The step just passed: every 5% from 10% up, every 1% below
+  const step = percent < 10 ? percent : Math.ceil(percent / 5) * 5;
+  if (batteryAlertLevel !== null && step < batteryAlertLevel) {
+    log('[Battery] ' + percent + '% (step ' + step + '%)');
+    showBatteryToast(percent, 'high');
+    playNotificationSound('warning');
+  }
+  if (batteryAlertLevel === null || step < batteryAlertLevel) batteryAlertLevel = step;
+}
+setInterval(checkBatteryAlarm, 30000);
+
 ipcMain.handle('get-notif-settings', () => notifSettings);
 ipcMain.handle('set-notif-settings', (event, s) => setNotifSettings(s));
 

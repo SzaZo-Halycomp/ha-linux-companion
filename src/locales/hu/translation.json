@@ -75,5 +75,7 @@
   "batteryDischarging": "Merül",
   "batteryFull": "Feltöltve",
   "batteryNotCharging": "Nem tölt",
+  "batteryAlarm": "🔋 Lemerülés riasztás",
+  "batteryLow": "Az akkumulátor lemerülőben, csatlakoztasd a töltőt",
   "secondsLabel": "mp"
 }
