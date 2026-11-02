@@ -447,6 +447,8 @@ let dashboardLoaded = false;
 let authInjected = false;
 let authRetryCount = 0;
 const MAX_AUTH_RETRIES = 2;
+const DASHBOARD_RETRY_DELAY = 5000;
+let dashboardRetryTimer = null;
 
 function loadDashboard() {
   // Always reload config to get latest token after refresh
@@ -461,9 +463,24 @@ function loadDashboard() {
   dashboardLoaded = false;
   authInjected = false;
 
+  // A failed load (network not up yet at boot, HA restarting) leaves a blank
+  // white window and nothing else reloads it — the health check only acts on an
+  // online→offline→online transition. Retry until the dashboard loads.
+  if (dashboardRetryTimer) { clearTimeout(dashboardRetryTimer); dashboardRetryTimer = null; }
+  mainWindow.webContents.removeAllListeners('did-fail-load');
+  mainWindow.webContents.on('did-fail-load', (event, code, desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return; // -3 = aborted by a newer navigation
+    log(`[WebView] Load failed (${code} ${desc}) ${url} — retrying in ${DASHBOARD_RETRY_DELAY / 1000}s`);
+    if (dashboardRetryTimer) clearTimeout(dashboardRetryTimer);
+    dashboardRetryTimer = setTimeout(() => {
+      dashboardRetryTimer = null;
+      if (mainWindow && !mainWindow.isDestroyed()) loadDashboard();
+    }, DASHBOARD_RETRY_DELAY);
+  });
+
   mainWindow.loadURL(haUrl, {
     userAgent: 'HA-Linux-Companion/' + APP_VERSION + ' (Linux; ' + os.hostname() + ')',
-  });
+  }).catch(() => {}); // failure is handled by did-fail-load
 
   // Detect when WebView lands on HA login page after disconnect/restart
   mainWindow.webContents.removeAllListeners('did-navigate');
@@ -506,7 +523,13 @@ function loadDashboard() {
       '})()'
     ].join('\n');
 
-    mainWindow.webContents.executeJavaScript(injectCode).then(() => {
+    // On a failed load this runs on Chromium's error page and rejects; the
+    // did-fail-load retry reloads the dashboard, so just log it.
+    mainWindow.webContents.executeJavaScript(injectCode).catch((e) => {
+      log('[WebView] Token inject failed (page not loaded): ' + e.message);
+      return false;
+    }).then((ok) => {
+      if (ok === false) return;
       dashboardLoaded = false;
       mainWindow.webContents.on('did-finish-load', function onLoad() {
         if (dashboardLoaded) return;
