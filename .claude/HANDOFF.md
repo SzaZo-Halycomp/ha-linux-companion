@@ -100,6 +100,15 @@ Nothing is uncommitted at the time of writing.
   move; rule adopted into every shadow root (insertCSS alone can't reach HA's shadow
   DOM). Tested via CDP touch/mouse emulation, then confirmed by the user on a real tablet.
 - Retested via HA on the laptop: play/stop audio (user heard it), volume 0.2/0.8.
+- `4e26a50` feat: **low battery alarm** (`checkBatteryAlarm()` in src/main.js, polled every
+  30 s). Only while discharging and not on AC: beep (`warning` sound + `high` toast) each
+  time the level crosses a 5% step (35, 30, … 10), every 1% below 10%, and below 5% an
+  `urgent` toast + `error` sound repeating every 10 s (`BATTERY_ALARM_REPEAT`) until
+  plugged in. The first step after start/unplug is silent (baseline). Toggle
+  Settings → Notifications → 🔋 Low battery alarm (`notifSettings.batteryAlert`, default
+  on; row shown only when a battery exists). Locale keys `batteryAlarm`, `batteryLow`.
+  Tested only with a simulated drain (37% → 3%: steps, urgent loop, plug-in stops it,
+  toggle off silences); **not yet tested on a real draining device** — ask the user.
 
 ## Remote commands (all in `handleNotificationCommand`, src/main.js)
 
@@ -125,6 +134,9 @@ Plain messages (no `command_` prefix) show a toast; `title` beside `message`,
 `priority` inside `data`.
 
 ## Open ideas / known gaps (not started)
+
+- Battery alarm: verify on a real tablet running down on battery; volume follows the
+  system volume (a muted panel stays silent).
 
 - `command_open_url`: optionally prepend `https://` when the scheme is missing (offered).
 - Crash restart: autostart doesn't restart a crashed app; offered a user systemd service

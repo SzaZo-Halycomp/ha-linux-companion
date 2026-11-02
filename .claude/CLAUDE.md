@@ -20,7 +20,7 @@ Read `.claude/HANDOFF.md` first when continuing work.
 - `src/views/login.html` — first-run login page (local file, own origin).
 - `src/preload.js` — `window.haCompanion.*` IPC bridge used by overlay/login.
 - `src/locales/{en,it,de,hu}/translation.json` — **all four must have the same keys**
-  (64 keys now). Add every new string to all four.
+  (66 keys now). Add every new string to all four.
 - `install.sh` — Debian installer (Node 20, deps, copies repo to `/opt/ha-linux-companion`,
   autostart `.desktop`, `run.sh`, optional systemd unit). Profiles `raspi` / `generic`.
 - `examples/home-assistant/` — HA script `panel_command` + test dashboard card.
@@ -47,6 +47,8 @@ Read `.claude/HANDOFF.md` first when continuing work.
   `~/.config/ha-linux-companion/notif-settings.json`, IPC `get/set-notif-settings`.
 - `command_play_audio` plays in a hidden `BrowserWindow` (about:blank) via `new Audio()`;
   URLs starting with `/` are resolved against the HA URL.
+- Low battery alarm: `checkBatteryAlarm()` polls `getBatteryInfo()` every 30 s; toggle
+  `notifSettings.batteryAlert`. Sounds via `playNotificationSound()`, popups via `__haToast`.
 - Config dir (also Electron userData): `~/.config/ha-linux-companion/` — `config.json`
   holds HA tokens + `deviceId`/`webhookId`: never print, commit or copy it between machines.
 
