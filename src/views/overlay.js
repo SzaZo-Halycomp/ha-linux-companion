@@ -8,7 +8,9 @@
     /* ── Kiosk Status Bar ── */
     #ha-comp-topbar { position:fixed;top:0;left:0;right:0;height:50px;z-index:99999;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(18,18,20,0.88);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,0.06);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:rgba(255,255,255,0.85);font-size:14px;transition:opacity 0.4s,transform 0.4s; }
     #ha-comp-topbar.hidden { opacity:0;transform:translateY(-100%);pointer-events:none; }
-    #ha-comp-topbar:hover, #ha-comp-topbar.reveal { opacity:1;transform:translateY(0);pointer-events:auto; }
+    #ha-comp-topbar.reveal { opacity:1;transform:translateY(0);pointer-events:auto; }
+    /* :hover sticks after a tap on touchscreens, so only for real mice */
+    @media (hover: hover) { #ha-comp-topbar:hover { opacity:1;transform:translateY(0);pointer-events:auto; } }
     .topbar-left { display:flex;align-items:center;gap:14px; }
     .topbar-time { font-size:16px;font-weight:600;letter-spacing:0.3px;font-variant-numeric:tabular-nums; }
     .topbar-date { font-size:12px;color:rgba(255,255,255,0.5); }
@@ -145,15 +147,21 @@
   function revealBar() { topbar.classList.remove('hidden'); scheduleBarHide(); }
   function hideBar() { if (!open && !barPinned) topbar.classList.add('hidden'); }
 
-  topbar.addEventListener('mouseenter', function() { clearInterval(barHideTimer); topbar.classList.remove('hidden'); });
-  topbar.addEventListener('mouseleave', function() { scheduleBarHide(); });
+  // Browsers also fire mouse events for a tap; those must not keep the bar up
+  function fromTouch(e) { return !!(e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents); }
+
+  topbar.addEventListener('mouseenter', function(e) { if (fromTouch(e)) return; clearInterval(barHideTimer); topbar.classList.remove('hidden'); });
+  topbar.addEventListener('mouseleave', function(e) { if (fromTouch(e)) return; scheduleBarHide(); });
   scheduleBarHide();
 
-  // Touch-scroll based show/hide (use capture to intercept before HA's own handlers)
+  // Touch-scroll based show/hide (use capture to intercept before HA's own handlers).
+  // A tap never reveals the bar (HA's toolbar buttons sit under it); a tap anywhere
+  // except the ⚙ button or the open panel hides it at once, freeing HA's buttons.
   document.addEventListener('touchstart', function(e) {
     lastTouchY = e.touches[0].clientY;
     touchScrollDelta = 0;
-    if (lastTouchY < 60) revealBar();
+    var t = e.target;
+    if (t && t.closest && !t.closest('#ha-comp-topbar-btn') && !t.closest('#ha-comp-panel')) hideBar();
   }, { capture: true, passive: true });
 
   document.addEventListener('touchmove', function(e) {
@@ -187,6 +195,7 @@
   const MOUSE_REVEAL_DELAY = 2000;
   let mouseRevealTimer = null;
   document.addEventListener('mousemove', function(e) {
+    if (fromTouch(e)) return;
     if (e.clientY < 15) {
       if (!mouseRevealTimer) mouseRevealTimer = setTimeout(function() { mouseRevealTimer = null; revealBar(); }, MOUSE_REVEAL_DELAY);
     } else if (mouseRevealTimer) {
@@ -194,6 +203,33 @@
       mouseRevealTimer = null;
     }
   });
+  // ── Hide the mouse cursor on touch panels ──
+  // Hidden from the start when there is no mouse at all, and after any touch;
+  // a real mouse movement brings it back. HA sets its own cursors inside shadow
+  // DOM, so the rule is adopted into every shadow root, not just the document.
+  var cursorSheet = new CSSStyleSheet();
+  var cursorRoots = new WeakSet();
+  var cursorHidden = false, cursorScanAt = 0;
+  function adoptCursorSheet(root) {
+    if (cursorRoots.has(root)) return;
+    cursorRoots.add(root);
+    root.adoptedStyleSheets = root.adoptedStyleSheets.concat(cursorSheet);
+  }
+  function scanCursorRoots(root) {
+    adoptCursorSheet(root);
+    root.querySelectorAll('*').forEach(function(el) { if (el.shadowRoot) scanCursorRoots(el.shadowRoot); });
+  }
+  function setCursorHidden(hide) {
+    // Rescan (throttled) on every touch: HA creates new shadow roots as you navigate
+    if (hide && Date.now() - cursorScanAt > 1000) { cursorScanAt = Date.now(); scanCursorRoots(document); }
+    if (hide === cursorHidden) return;
+    cursorHidden = hide;
+    cursorSheet.replaceSync(hide ? '* { cursor: none !important; }' : '');
+  }
+  document.addEventListener('touchstart', function() { setCursorHidden(true); }, { capture: true, passive: true });
+  document.addEventListener('mousemove', function(e) { if (!fromTouch(e)) setCursorHidden(false); }, { capture: true, passive: true });
+  if (!window.matchMedia('(any-pointer: fine)').matches) setCursorHidden(true);
+
   // Pin bar while panel is open
   // (handled in togglePanel below)
 
