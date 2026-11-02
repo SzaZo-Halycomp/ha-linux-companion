@@ -1,0 +1,2 @@
+- [ha-linux-companion handoff](ha-companion-handoff.md) — project state in repo .claude/HANDOFF.md + CLAUDE.md; read first
+- [x86 edits in full copy](x86-edits-in-full-copy.md) — original x86/Docker experiments in srv/full; x86 ported, Docker host-X11 not
