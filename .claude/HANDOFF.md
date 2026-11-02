@@ -85,6 +85,17 @@ autostart `.desktop` only; do not also enable the systemd unit → two instances
 
 Nothing is uncommitted at the time of writing.
 
+### Later on 2026-11-02 (pushed)
+
+- `f547f54` fix(touch): a tap near the top no longer reveals the top bar over HA's
+  toolbar (swipe down still does; a tap anywhere but ⚙/panel hides it at once;
+  mouse handlers ignore touch-emulated events via `sourceCapabilities.firesTouchEvents`;
+  `:hover` only under `@media (hover: hover)`). Mouse cursor hidden on touch panels:
+  from start without a fine pointer, after any touch otherwise, back on real mouse
+  move; rule adopted into every shadow root (insertCSS alone can't reach HA's shadow
+  DOM). Tested via CDP touch/mouse emulation; the user still has to try it on the tablet.
+- Retested via HA on the laptop: play/stop audio (user heard it), volume 0.2/0.8.
+
 ## Remote commands (all in `handleNotificationCommand`, src/main.js)
 
 Send with `action: notify.mobile_app_<device>`, `data: {message: <command>, data: {...}}`.
