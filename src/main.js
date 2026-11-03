@@ -2060,6 +2060,20 @@ function getVolume() {
   return m ? parseInt(m[1]) : 50;
 }
 
+// Real mute state of the same control setVolume/setMute drive. Read fresh each
+// time: other programs (desktop mixer, HA media player, headphones) change it.
+function getMute() {
+  if (usePactl()) {
+    const out = runShell('LC_ALL=C pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null');
+    if (/Mute:\s*yes/i.test(out)) return true;
+    if (/Mute:\s*no/i.test(out)) return false;
+  }
+  const out = runShell('amixer get Master 2>/dev/null');
+  if (/\[off\]/.test(out)) return true;
+  if (/\[on\]/.test(out)) return false;
+  return null; // unknown (no Master switch)
+}
+
 ipcMain.handle('set-volume', (event, vol) => {
   setVolume(vol);
   log('[System] Volume set to ' + vol + '%');
@@ -2068,6 +2082,7 @@ ipcMain.handle('set-volume', (event, vol) => {
 
 ipcMain.handle('set-mute', (event, muted) => {
   setMute(muted);
+  log('[System] Mute ' + (muted ? 'on' : 'off'));
   return true;
 });
 
@@ -2096,6 +2111,7 @@ ipcMain.handle('bluetooth-connect', (event, mac) => {
 ipcMain.handle('get-system-info', () => {
   return {
     volume: getVolume(),
+    muted: getMute(),
     brightness: getBacklightBrightness(),
     hasBacklight: !!findBacklight() || runShell('ddcutil detect 2>/dev/null').includes('Display'),
     deviceName: config ? config.deviceName : 'Unknown',

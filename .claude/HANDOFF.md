@@ -133,6 +133,17 @@ Send with `action: notify.mobile_app_<device>`, `data: {message: <command>, data
 Plain messages (no `command_` prefix) show a toast; `title` beside `message`,
 `priority` inside `data`.
 
+- `682c884` fix: **white screen at boot** — the tablet booted before the network was up,
+  `loadURL` failed (`ERR_ADDRESS_UNREACHABLE`) and nothing reloaded it (the health check
+  starts with `haConnected = true` and only reloads after an offline→online change).
+  Now `did-fail-load` retries `loadDashboard()` every 5 s (`DASHBOARD_RETRY_DELAY`);
+  the token inject on the error page no longer throws an unhandled rejection.
+  Confirmed on a tablet by the user (reboot → dashboard loads).
+- fix: **mute/volume read from the system** — `getMute()` (`LC_ALL=C pactl get-sink-mute`
+  / `amixer get Master` [on]/[off]) in `get-system-info`; the settings panel refreshes
+  volume + mute on open and every 2 s while open (slider skipped while dragged).
+  getMute tested against pactl on the laptop; panel not yet tested in the running app.
+
 ## Open ideas / known gaps (not started)
 
 - Battery alarm: verify on a real tablet running down on battery; volume follows the
@@ -141,7 +152,6 @@ Plain messages (no `command_` prefix) show a toast; `title` beside `message`,
 - `command_open_url`: optionally prepend `https://` when the scheme is missing (offered).
 - Crash restart: autostart doesn't restart a crashed app; offered a user systemd service
   with `Restart=always` used by install.sh instead of the autostart entry.
-- Mute button initial state is not read from the system (always shows "off" on open).
 - `install.sh` copies the repo to `/opt`; updating = `git pull` + rerun installer.
 - Docker host-X11 setup from `srv/full` not ported.
 - HA TTS on the server is broken (see above) — user should check HA logs.

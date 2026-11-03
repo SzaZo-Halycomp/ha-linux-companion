@@ -413,6 +413,7 @@
     loadHardwareInfo();
     loadNetworkInfo();
     loadAudioOutputs();
+    loadAudioState();
     loadSchedule();
     loadUpdateInfo();
     ipc('getGovernor').then(function(g) { document.getElementById('comp-governor').value = g; });
@@ -455,7 +456,23 @@
   var volSlider = document.getElementById('comp-volume'), volVal = document.getElementById('comp-volume-val'), muteBtn = document.getElementById('comp-mute');
   volSlider.addEventListener('input', async () => { volVal.textContent = volSlider.value + '%'; await ipc('setVolume', parseInt(volSlider.value)); });
   let muted = false;
-  muteBtn.addEventListener('click', async () => { muted = !muted; muteBtn.textContent = t(muted ? 'on' : 'off'); muteBtn.style.background = muted ? '#FF3B30' : '#3A3A3C'; await ipc('setMute', muted); });
+  function showMute(m) { muted = !!m; muteBtn.textContent = t(muted ? 'on' : 'off'); muteBtn.style.background = muted ? '#FF3B30' : '#3A3A3C'; }
+  muteBtn.addEventListener('click', async () => { showMute(!muted); await ipc('setMute', muted); });
+  // Read volume + mute from the system: other programs change them too, so
+  // refresh on panel open and every 2 s while it stays open. Skip the slider
+  // while it is being dragged so it does not jump under the finger.
+  var volDragging = false;
+  volSlider.addEventListener('pointerdown', function() { volDragging = true; });
+  window.addEventListener('pointerup', function() { volDragging = false; }, true);
+  window.addEventListener('pointercancel', function() { volDragging = false; }, true);
+  function loadAudioState() {
+    ipc('getSystemInfo').then(function(info) {
+      if (!info) return;
+      if (info.volume !== undefined && !volDragging) { volSlider.value = info.volume; volVal.textContent = info.volume + '%'; }
+      if (info.muted === true || info.muted === false) showMute(info.muted);
+    });
+  }
+  setInterval(function() { if (open) loadAudioState(); }, 2000);
 
   var audioOutputSel = document.getElementById('comp-audio-output');
   function loadAudioOutputs() {
@@ -742,6 +759,7 @@
   ipc('getSystemInfo').then(info => {
     if (!info) return;
     if (info.volume !== undefined) { volSlider.value = info.volume; volVal.textContent = info.volume + '%'; }
+    if (info.muted === true || info.muted === false) showMute(info.muted);
     if (info.brightness !== undefined) { brightSlider.value = info.brightness; brightVal.textContent = info.brightness + '%'; }
     if (info.deviceName) { document.getElementById('comp-device-name').textContent = info.deviceName; var td = document.getElementById('topbar-device'); if (td) td.textContent = info.deviceName; }
     if (info.version) document.getElementById('comp-version').textContent = info.version;
