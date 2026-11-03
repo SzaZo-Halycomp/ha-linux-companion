@@ -142,7 +142,13 @@ Plain messages (no `command_` prefix) show a toast; `title` beside `message`,
 - fix: **mute/volume read from the system** — `getMute()` (`LC_ALL=C pactl get-sink-mute`
   / `amixer get Master` [on]/[off]) in `get-system-info`; the settings panel refreshes
   volume + mute on open and every 2 s while open (slider skipped while dragged).
-  getMute tested against pactl on the laptop; panel not yet tested in the running app.
+  Tested against pactl on the laptop; confirmed on a tablet by the user.
+- fix: **louder battery alarm** — own sounds (`BATTERY_SOUNDS`, `batteryTones()`):
+  2.4–3.2 kHz square-ish beeps at full level, no fade (old 200–600 Hz fading tones were
+  barely audible on tablet speakers). Step 0.8 s; below 10% 1.6 s and below 5% a 2.2 s
+  siren, both at least `BATTERY_MIN_VOLUME` (90%) and unmuted, previous volume/mute
+  restored after the sound. `makeWav()` / `playWav()` shared with notification sounds.
+  Level + boost/restore tested offline; not yet heard on a tablet.
 
 ## Open ideas / known gaps (not started)
 

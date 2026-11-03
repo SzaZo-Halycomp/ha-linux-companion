@@ -1186,6 +1186,42 @@ function listCustomSounds() {
   }
 }
 
+// 16-bit mono WAV from integer samples
+function makeWav(samples, sampleRate) {
+  const dataSize = samples.length * 2;
+  const buf = Buffer.alloc(44 + dataSize);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + dataSize, 4); buf.write('WAVE', 8);
+  buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22); buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(sampleRate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
+  buf.write('data', 36); buf.writeUInt32LE(dataSize, 40);
+  for (let i = 0; i < samples.length; i++) {
+    buf.writeInt16LE(Math.max(-32768, Math.min(32767, samples[i])), 44 + i * 2);
+  }
+  return buf;
+}
+
+// Play a WAV buffer via the best available method; onDone runs when it ends.
+function playWav(buf, onDone) {
+  const tmpWav = path.join(os.tmpdir(), 'ha-companion-' + process.pid + '-' + Date.now() + '.wav');
+  fs.writeFileSync(tmpWav, buf);
+  let cmd;
+  if (audioBackend === 'pipewire') {
+    cmd = `XDG_RUNTIME_DIR=/run/user/$(id -u) pw-play "${tmpWav}" 2>/dev/null || paplay "${tmpWav}" 2>/dev/null`;
+  } else if (audioBackend === 'pulseaudio') {
+    cmd = `paplay "${tmpWav}" 2>/dev/null`;
+  } else if (audioBackend === 'alsa-dmix') {
+    cmd = `aplay -D default "${tmpWav}" 2>/dev/null`;
+  } else {
+    cmd = `aplay "${tmpWav}" 2>/dev/null`;
+  }
+  // Fire and forget — don't block the caller
+  require('child_process').exec(cmd, { timeout: 10000 }, () => {
+    try { fs.unlinkSync(tmpWav); } catch (e) {}
+    if (onDone) onDone();
+  });
+}
+
 function playNotificationSound(soundName) {
   if (audioBackend === 'none') return;
   // Check if it's a custom sound file
@@ -1208,36 +1244,7 @@ function playNotificationSound(soundName) {
         allSamples.push(Math.floor(Math.sin(2 * Math.PI * tone.f * t) * env * 32000));
       }
     }
-    const dataSize = allSamples.length * 2;
-    const buf = Buffer.alloc(44 + dataSize);
-    buf.write('RIFF', 0); buf.writeUInt32LE(36 + dataSize, 4); buf.write('WAVE', 8);
-    buf.write('fmt ', 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
-    buf.writeUInt16LE(1, 22); buf.writeUInt32LE(sampleRate, 24);
-    buf.writeUInt32LE(sampleRate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
-    buf.write('data', 36); buf.writeUInt32LE(dataSize, 40);
-    for (let i = 0; i < allSamples.length; i++) {
-      buf.writeInt16LE(Math.max(-32768, Math.min(32767, allSamples[i])), 44 + i * 2);
-    }
-
-    // Write to temp file
-    const tmpWav = path.join(os.tmpdir(), 'ha-companion-notif.wav');
-    fs.writeFileSync(tmpWav, buf);
-
-    // Play via best available method
-    let cmd = null;
-    if (audioBackend === 'pipewire') {
-      cmd = `XDG_RUNTIME_DIR=/run/user/$(id -u) pw-play "${tmpWav}" 2>/dev/null || paplay "${tmpWav}" 2>/dev/null`;
-    } else if (audioBackend === 'pulseaudio') {
-      cmd = `paplay "${tmpWav}" 2>/dev/null`;
-    } else if (audioBackend === 'alsa-dmix') {
-      cmd = `aplay -D default "${tmpWav}" 2>/dev/null`;
-    } else {
-      cmd = `aplay "${tmpWav}" 2>/dev/null`;
-    }
-    // Fire and forget — don't block the notification
-    require('child_process').exec(cmd, { timeout: 3000 }, () => {
-      try { fs.unlinkSync(tmpWav); } catch (e) {}
-    });
+    playWav(makeWav(allSamples, sampleRate));
   } catch (e) {
     log('[Audio] playNotificationSound error: ' + e.message);
   }
@@ -1872,6 +1879,52 @@ const BATTERY_ALARM_REPEAT = 10000;
 let batteryAlertLevel = null;  // last announced step; null = not discharging yet
 let batteryAlarmTimer = null;
 
+// Battery alarm sounds. The notification tones (200–600 Hz, fading) are barely
+// audible on small tablet speakers, so these are 2.4–3.2 kHz beeps at full
+// level with no fade, longer and faster as the battery gets lower.
+// [frequency Hz (0 = pause), duration ms]
+const BATTERY_SOUNDS = {
+  step:     [[2700, 180], [0, 120], [2700, 180], [0, 120], [2700, 180]],
+  low:      [[3200, 160], [2400, 160], [0, 100], [3200, 160], [2400, 160], [0, 100],
+             [3200, 160], [2400, 160], [0, 100], [3200, 160], [2400, 160]],
+  critical: Array.from({ length: 10 }, (_, i) => [i % 2 ? 2400 : 3200, 220]),
+};
+// Below 10% the alarm plays at least this loud, even if the panel is muted;
+// the previous volume/mute is restored when the sound ends.
+const BATTERY_MIN_VOLUME = 90;
+
+function batteryTones(seq) {
+  const sampleRate = 44100, ramp = Math.floor(sampleRate * 0.005);
+  const samples = [];
+  for (const [f, d] of seq) {
+    const n = Math.floor(sampleRate * d / 1000);
+    for (let i = 0; i < n; i++) {
+      if (!f) { samples.push(0); continue; }
+      const x = 2 * Math.PI * f * i / sampleRate;
+      // Square-ish wave (odd harmonics): much louder than a sine on small speakers
+      const v = (Math.sin(x) + Math.sin(3 * x) / 3 + Math.sin(5 * x) / 5) / 0.94;
+      const env = Math.min(1, i / ramp, (n - i) / ramp); // 5 ms edges, no clicks
+      samples.push(Math.round(v * env * 32000));
+    }
+  }
+  return makeWav(samples, sampleRate);
+}
+
+function playBatterySound(kind) {
+  if (audioBackend === 'none') return;
+  let restore = null;
+  if (kind !== 'step') {
+    const vol = getVolume(), muted = getMute();
+    if (vol < BATTERY_MIN_VOLUME || muted) {
+      setVolume(BATTERY_MIN_VOLUME);
+      if (muted) setMute(false);
+      restore = () => { setVolume(vol); if (muted) setMute(true); };
+    }
+  }
+  try { playWav(batteryTones(BATTERY_SOUNDS[kind]), restore); }
+  catch (e) { log('[Battery] Sound error: ' + e.message); if (restore) restore(); }
+}
+
 function showBatteryToast(percent, priority) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.executeJavaScript(
@@ -1898,8 +1951,8 @@ function checkBatteryAlarm() {
     if (!batteryAlarmTimer) {
       log('[Battery] Critical ' + percent + '%, alarm on');
       showBatteryToast(percent, 'urgent');
-      playNotificationSound('error');
-      batteryAlarmTimer = setInterval(() => playNotificationSound('error'), BATTERY_ALARM_REPEAT);
+      playBatterySound('critical');
+      batteryAlarmTimer = setInterval(() => playBatterySound('critical'), BATTERY_ALARM_REPEAT);
     }
     batteryAlertLevel = percent;
     return;
@@ -1910,7 +1963,7 @@ function checkBatteryAlarm() {
   if (batteryAlertLevel !== null && step < batteryAlertLevel) {
     log('[Battery] ' + percent + '% (step ' + step + '%)');
     showBatteryToast(percent, 'high');
-    playNotificationSound('warning');
+    playBatterySound(percent < 10 ? 'low' : 'step');
   }
   if (batteryAlertLevel === null || step < batteryAlertLevel) batteryAlertLevel = step;
 }
